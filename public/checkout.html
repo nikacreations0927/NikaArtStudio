@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout — Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links"></nav>
+  <a href="cart.html" class="cart-icon" aria-label="View cart">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    <span class="cart-count" id="cart-count">0</span>
+  </a>
+</header>
+
+<div class="page-hero-small">
+  <h1>Checkout</h1>
+</div>
+
+<section class="section checkout-section">
+
+  <!-- LEFT: Customer details form -->
+  <div class="checkout-form-col">
+    <h3>Shipping details</h3>
+    <form id="checkout-form" novalidate>
+      <div class="form-row two-col">
+        <div class="form-group">
+          <label>First name *</label>
+          <input type="text" id="firstName" required placeholder="Priya" />
+        </div>
+        <div class="form-group">
+          <label>Last name *</label>
+          <input type="text" id="lastName" required placeholder="Sharma" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email address *</label>
+        <input type="email" id="email" required placeholder="priya@email.com" />
+      </div>
+      <div class="form-group">
+        <label>Phone number *</label>
+        <input type="tel" id="phone" required placeholder="9876543210" maxlength="10" />
+      </div>
+      <div class="form-group">
+        <label>Address *</label>
+        <input type="text" id="address" required placeholder="House / Flat number, Street name" />
+      </div>
+      <div class="form-row two-col">
+        <div class="form-group">
+          <label>City *</label>
+          <input type="text" id="city" required placeholder="Bengaluru" />
+        </div>
+        <div class="form-group">
+          <label>State *</label>
+          <input type="text" id="state" required placeholder="Karnataka" />
+        </div>
+      </div>
+      <div class="form-row two-col">
+        <div class="form-group">
+          <label>PIN code *</label>
+          <input type="text" id="pincode" required placeholder="560001" maxlength="6" />
+        </div>
+        <div class="form-group">
+          <label>Country</label>
+          <input type="text" id="country" value="India" readonly />
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- RIGHT: Order summary + Pay button -->
+  <div class="checkout-summary-col">
+    <h3>Order summary</h3>
+    <div class="order-items" id="order-items"></div>
+    <div class="summary-row"><span>Subtotal</span><span id="co-subtotal">₹0</span></div>
+    <div class="summary-row"><span>Shipping</span><span id="co-shipping">₹0</span></div>
+    <div class="summary-row total-row"><span>Total</span><span id="co-total">₹0</span></div>
+
+    <div class="payment-section">
+      <p class="payment-label">Pay securely via</p>
+      <div class="payment-logos">
+        <span class="pay-badge">PhonePe</span>
+        <span class="pay-badge">UPI</span>
+        <span class="pay-badge">BHIM</span>
+      </div>
+    </div>
+
+    <button class="btn-primary full-width" id="pay-btn" onclick="initiatePayment()">
+      Pay now with PhonePe / UPI
+    </button>
+    <p class="secure-note">🔒 100% secure. Powered by PhonePe payment gateway.</p>
+
+    <div id="pay-error" class="error-msg" style="display:none"></div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2025 Nika Arts Studio. All rights reserved.</p>
+</footer>
+
+<script src="js/cart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  updateCartCount();
+  await loadProducts();
+  syncCartWithProducts();
+  const cart = getCart();
+  if (cart.length === 0) { window.location.href = 'cart.html'; return; }
+
+  const orderItems = document.getElementById('order-items');
+  orderItems.innerHTML = cart.map(item => `
+    <div class="order-item-row">
+      <span>${item.name} × ${item.qty}</span>
+      <span>₹${(item.price * item.qty).toLocaleString('en-IN')}</span>
+    </div>
+  `).join('');
+
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const shipping = subtotal >= 999 ? 0 : 99; // Free shipping above ₹999
+  document.getElementById('co-subtotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
+  document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : '₹' + shipping;
+  document.getElementById('co-total').textContent = '₹' + (subtotal + shipping).toLocaleString('en-IN');
+});
+
+async function initiatePayment() {
+  const btn = document.getElementById('pay-btn');
+  const errDiv = document.getElementById('pay-error');
+  errDiv.style.display = 'none';
+
+  // Validate form
+  const fields = ['firstName','lastName','email','phone','address','city','state','pincode'];
+  for (const f of fields) {
+    const el = document.getElementById(f);
+    if (!el.value.trim()) {
+      el.focus();
+      errDiv.textContent = 'Please fill in all required fields.';
+      errDiv.style.display = 'block';
+      return;
+    }
+  }
+  if (!/^\d{10}$/.test(document.getElementById('phone').value)) {
+    errDiv.textContent = 'Please enter a valid 10-digit phone number.';
+    errDiv.style.display = 'block';
+    return;
+  }
+  if (!/^\d{6}$/.test(document.getElementById('pincode').value)) {
+    errDiv.textContent = 'Please enter a valid 6-digit PIN code.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Redirecting to PhonePe...';
+
+  const cart = getCart();
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const shipping = subtotal >= 999 ? 0 : 99;
+  const total = subtotal + shipping;
+
+  const orderData = {
+    customer: {
+      firstName: document.getElementById('firstName').value.trim(),
+      lastName: document.getElementById('lastName').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      address: document.getElementById('address').value.trim(),
+      city: document.getElementById('city').value.trim(),
+      state: document.getElementById('state').value.trim(),
+      pincode: document.getElementById('pincode').value.trim(),
+    },
+    items: cart,
+    total,
+    shipping
+  };
+
+  try {
+    const res = await fetch('/api/payment/initiate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    const data = await res.json();
+
+    if (data.success && data.redirectUrl) {
+      // Save order info locally before redirect
+      localStorage.setItem('pendingOrder', JSON.stringify(orderData));
+      window.location.href = data.redirectUrl;
+    } else {
+      throw new Error(data.message || 'Payment initiation failed');
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Pay now with PhonePe / UPI';
+    errDiv.textContent = 'Error: ' + err.message + '. Please try again.';
+    errDiv.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>

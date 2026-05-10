@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cart — Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="products.html">Shop</a>
+    <a href="index.html#about">About</a>
+  </nav>
+  <a href="cart.html" class="cart-icon" aria-label="View cart">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    <span class="cart-count" id="cart-count">0</span>
+  </a>
+</header>
+
+<div class="page-hero-small">
+  <h1>Your Cart</h1>
+</div>
+
+<section class="section cart-section">
+  <div class="cart-items" id="cart-items">
+    <!-- Populated by JS -->
+  </div>
+  <div class="cart-summary" id="cart-summary" style="display:none">
+    <div class="summary-box">
+      <h3>Order summary</h3>
+      <div class="summary-row"><span>Subtotal</span><span id="subtotal">₹0</span></div>
+      <div class="summary-row"><span>Shipping</span><span id="shipping-cost">Calculated at checkout</span></div>
+      <div class="summary-row total-row"><span>Total</span><span id="cart-total">₹0</span></div>
+      <a href="checkout.html" class="btn-primary full-width" id="checkout-btn">Proceed to checkout</a>
+      <a href="products.html" class="link-subtle center-text">Continue shopping</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2025 Nika Arts Studio. All rights reserved.</p>
+</footer>
+
+<script src="js/cart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadProducts();
+  syncCartWithProducts();
+  renderCart();
+});
+
+function renderCart() {
+  const cart = getCart();
+  const itemsDiv = document.getElementById('cart-items');
+  const summaryDiv = document.getElementById('cart-summary');
+  updateCartCount();
+
+  if (cart.length === 0) {
+    itemsDiv.innerHTML = `
+      <div class="empty-cart">
+        <p>Your cart is empty.</p>
+        <a href="products.html" class="btn-primary">Start shopping</a>
+      </div>`;
+    summaryDiv.style.display = 'none';
+    return;
+  }
+
+  summaryDiv.style.display = 'block';
+  itemsDiv.innerHTML = cart.map(item => `
+    <div class="cart-item" data-id="${item.id}">
+      <div class="cart-item-img">
+        ${item.image ? `<img src="${item.image}" alt="${item.name}" />` : `<div class="img-placeholder"></div>`}
+      </div>
+      <div class="cart-item-info">
+        <p class="cart-item-name">${item.name}</p>
+        <p class="cart-item-price">₹${item.price.toLocaleString('en-IN')}</p>
+      </div>
+      <div class="cart-item-qty">
+        <button onclick="changeQty('${item.id}', -1)">−</button>
+        <span>${item.qty}</span>
+        <button onclick="changeQty('${item.id}', 1)">+</button>
+      </div>
+      <div class="cart-item-subtotal">₹${(item.price * item.qty).toLocaleString('en-IN')}</div>
+      <button class="remove-btn" onclick="removeFromCart('${item.id}')">✕</button>
+    </div>
+  `).join('');
+
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  document.getElementById('subtotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
+  document.getElementById('cart-total').textContent = '₹' + subtotal.toLocaleString('en-IN');
+}
+
+function changeQty(id, delta) {
+  let cart = getCart();
+  const idx = cart.findIndex(i => i.id === id);
+  if (idx === -1) return;
+  cart[idx].qty += delta;
+  if (cart[idx].qty <= 0) cart.splice(idx, 1);
+  saveCart(cart);
+  renderCart();
+}
+</script>
+</body>
+</html>

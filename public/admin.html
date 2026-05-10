@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="products.html">Shop</a>
+    <a href="admin.html" class="active">Admin</a>
+  </nav>
+</header>
+
+<div class="page-hero-small">
+  <h1>Store Admin</h1>
+  <p>Manage products, stock, sales, and logistics</p>
+</div>
+
+<section class="section admin-section">
+  <div class="admin-toolbar">
+    <label>
+      Username
+      <input type="text" id="admin-username" placeholder="Admin username" />
+    </label>
+    <label>
+      Password
+      <input type="password" id="admin-password" placeholder="Admin password" />
+    </label>
+    <button class="btn-primary" onclick="saveAdminLogin()">Log in</button>
+    <button class="btn-outline" onclick="clearAdminLogin()">Log out</button>
+    <button class="btn-outline" onclick="loadAdminData()">Refresh</button>
+  </div>
+
+  <div class="admin-stats" id="admin-stats"></div>
+
+  <div class="admin-panel">
+    <h3>Add category</h3>
+    <form id="category-form" class="admin-form compact">
+      <input id="new-category-name" required placeholder="Category name, e.g. Crochet Flowers" />
+      <button class="btn-primary" type="submit">Add category</button>
+    </form>
+  </div>
+
+  <div class="admin-panel">
+    <h3>Add product</h3>
+    <form id="product-form" class="admin-form">
+      <input id="new-name" required placeholder="Product name" />
+      <select id="new-category" required>
+        <option value="">Select category</option>
+      </select>
+      <input id="new-price" required type="number" min="0" placeholder="Price" />
+      <input id="new-stock" required type="number" min="0" placeholder="Stock" />
+      <input id="new-image" placeholder="Image path, e.g. images/item.jpg" />
+      <input id="new-description" placeholder="Description" />
+      <button class="btn-primary" type="submit">Add product</button>
+    </form>
+    <div id="admin-message" class="admin-message"></div>
+  </div>
+
+  <div class="admin-panel">
+    <h3>Products</h3>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="products-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="admin-panel">
+    <h3>Orders & logistics</h3>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Total</th>
+            <th>Payment</th>
+            <th>Fulfillment</th>
+            <th>Logistics</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="orders-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<script>
+const usernameInput = document.getElementById('admin-username');
+const passwordInput = document.getElementById('admin-password');
+usernameInput.value = sessionStorage.getItem('nika_admin_username') || '';
+passwordInput.value = sessionStorage.getItem('nika_admin_password') || '';
+let ADMIN_CATEGORIES = [];
+
+function adminHeaders() {
+  const username = sessionStorage.getItem('nika_admin_username') || '';
+  const password = sessionStorage.getItem('nika_admin_password') || '';
+  const key = localStorage.getItem('nika_admin_key') || '';
+  const basic = username && password ? btoa(`${username}:${password}`) : '';
+
+  return {
+    'Content-Type': 'application/json',
+    ...(basic ? { Authorization: `Basic ${basic}` } : {}),
+    ...(key ? { 'x-admin-key': key } : {})
+  };
+}
+
+function saveAdminLogin() {
+  sessionStorage.setItem('nika_admin_username', usernameInput.value.trim());
+  sessionStorage.setItem('nika_admin_password', passwordInput.value);
+  showMessage('Admin login saved for this browser tab.');
+  loadAdminData();
+}
+
+function clearAdminLogin() {
+  sessionStorage.removeItem('nika_admin_username');
+  sessionStorage.removeItem('nika_admin_password');
+  usernameInput.value = '';
+  passwordInput.value = '';
+  showMessage('Logged out.');
+}
+
+function showMessage(message, isError = false) {
+  const el = document.getElementById('admin-message');
+  el.textContent = message;
+  el.className = isError ? 'admin-message error-msg' : 'admin-message';
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { ...adminHeaders(), ...(options.headers || {}) }
+  });
+  const data = await res.json();
+  if (!res.ok || data.success === false) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+function rupees(value) {
+  return '₹' + Number(value || 0).toLocaleString('en-IN');
+}
+
+async function loadStats() {
+  const data = await api('/api/orders/sales/summary');
+  const summary = data.summary;
+  document.getElementById('admin-stats').innerHTML = `
+    <div><span>Paid orders</span><strong>${summary.orderCount}</strong></div>
+    <div><span>Revenue</span><strong>${rupees(summary.revenue)}</strong></div>
+    <div><span>Product sales</span><strong>${rupees(summary.productRevenue)}</strong></div>
+    <div><span>Low stock</span><strong>${summary.lowStock.length}</strong></div>
+  `;
+}
+
+function categoryOptions(selected = '') {
+  return ADMIN_CATEGORIES.map(category =>
+    `<option value="${category.name}" ${category.name === selected ? 'selected' : ''}>${category.name}</option>`
+  ).join('');
+}
+
+async function loadCategoriesAdmin() {
+  const data = await api('/api/categories?includeInactive=true');
+  ADMIN_CATEGORIES = data.categories.filter(category => category.isActive);
+  document.getElementById('new-category').innerHTML =
+    `<option value="">Select category</option>${categoryOptions()}`;
+}
+
+async function loadProductsAdmin() {
+  const data = await api('/api/products?includeInactive=true');
+  document.getElementById('products-body').innerHTML = data.products.map(product => `
+    <tr data-id="${product.id}">
+      <td>
+        <div class="admin-photo-cell">
+          ${product.image ? `<img class="admin-product-photo" src="${product.image}" alt="${product.name}" />` : `<div class="admin-product-photo empty">No photo</div>`}
+          <input class="admin-photo-input" type="file" accept="image/png,image/jpeg,image/webp" />
+          <button class="btn-outline" onclick="uploadProductImage('${product.id}')">Upload photo</button>
+        </div>
+      </td>
+      <td><input class="admin-name" value="${product.name}" /></td>
+      <td>
+        <select class="admin-category">
+          ${categoryOptions(product.category)}
+        </select>
+      </td>
+      <td><input class="admin-price" type="number" min="0" value="${product.price}" /></td>
+      <td><input class="admin-stock" type="number" min="0" value="${product.stock}" /></td>
+      <td>
+        <select class="admin-active">
+          <option value="true" ${product.isActive ? 'selected' : ''}>Active</option>
+          <option value="false" ${!product.isActive ? 'selected' : ''}>Hidden</option>
+        </select>
+      </td>
+      <td><button class="btn-outline" onclick="saveProduct('${product.id}')">Save</button></td>
+    </tr>
+  `).join('');
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadProductImage(id) {
+  try {
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    const fileInput = row.querySelector('.admin-photo-input');
+    const file = fileInput.files[0];
+    if (!file) throw new Error('Choose a product photo first.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      throw new Error('Use a JPEG, PNG, or WEBP image.');
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      throw new Error('Image must be 4 MB or smaller.');
+    }
+
+    const imageData = await readFileAsDataUrl(file);
+    await api(`/api/products/${id}/image`, {
+      method: 'POST',
+      body: JSON.stringify({ imageData })
+    });
+
+    showMessage('Product photo updated.');
+    await loadAdminData();
+  } catch (err) {
+    showMessage(err.message, true);
+  }
+}
+
+async function saveProduct(id) {
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+  await api(`/api/products/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: row.querySelector('.admin-name').value,
+      category: row.querySelector('.admin-category').value,
+      price: Number(row.querySelector('.admin-price').value),
+      stock: Number(row.querySelector('.admin-stock').value),
+      isActive: row.querySelector('.admin-active').value === 'true'
+    })
+  });
+  showMessage('Product updated.');
+  await loadAdminData();
+}
+
+async function loadOrders() {
+  const data = await api('/api/orders?limit=50');
+  document.getElementById('orders-body').innerHTML = data.orders.map(order => `
+    <tr data-order="${order.id}">
+      <td>
+        <strong>${order.id}</strong><br />
+        <small>${order.customer.firstName || ''} ${order.customer.lastName || ''}</small>
+      </td>
+      <td>${rupees(order.total)}</td>
+      <td>${order.paymentStatus}</td>
+      <td>
+        <select class="fulfillment-status">
+          ${['PENDING','READY_FOR_SHIPPING','PACKED','SHIPPED','DELIVERED','CANCELLED'].map(status =>
+            `<option value="${status}" ${order.fulfillmentStatus === status ? 'selected' : ''}>${status}</option>`
+          ).join('')}
+        </select>
+      </td>
+      <td>
+        <select class="logistics-status">
+          ${['NOT_CREATED','CREATED','PICKUP_SCHEDULED','IN_TRANSIT','DELIVERED','RETURNED','FAILED'].map(status =>
+            `<option value="${status}" ${order.logisticsStatus === status ? 'selected' : ''}>${status}</option>`
+          ).join('')}
+        </select>
+      </td>
+      <td><button class="btn-outline" onclick="saveOrderStatus('${order.id}')">Save</button></td>
+    </tr>
+  `).join('');
+}
+
+async function saveOrderStatus(id) {
+  const row = document.querySelector(`tr[data-order="${id}"]`);
+  await api(`/api/orders/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fulfillmentStatus: row.querySelector('.fulfillment-status').value,
+      logisticsStatus: row.querySelector('.logistics-status').value
+    })
+  });
+  showMessage('Order status updated.');
+  await loadAdminData();
+}
+
+document.getElementById('category-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await api('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('new-category-name').value
+      })
+    });
+    event.target.reset();
+    showMessage('Category added.');
+    await loadAdminData();
+  } catch (err) {
+    showMessage(err.message, true);
+  }
+});
+
+document.getElementById('product-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await api('/api/products', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('new-name').value,
+        category: document.getElementById('new-category').value,
+        price: Number(document.getElementById('new-price').value),
+        stock: Number(document.getElementById('new-stock').value),
+        image: document.getElementById('new-image').value,
+        description: document.getElementById('new-description').value
+      })
+    });
+    event.target.reset();
+    showMessage('Product added.');
+    await loadAdminData();
+  } catch (err) {
+    showMessage(err.message, true);
+  }
+});
+
+async function loadAdminData() {
+  try {
+    await loadCategoriesAdmin();
+    await Promise.all([loadStats(), loadProductsAdmin(), loadOrders()]);
+  } catch (err) {
+    showMessage(err.message, true);
+  }
+}
+
+loadAdminData();
+</script>
+</body>
+</html>

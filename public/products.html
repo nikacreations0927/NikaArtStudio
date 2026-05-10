@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shop — Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="products.html" class="active">Shop</a>
+    <a href="index.html#about">About</a>
+    <a href="index.html#contact">Contact</a>
+  </nav>
+  <a href="cart.html" class="cart-icon" aria-label="View cart">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    <span class="cart-count" id="cart-count">0</span>
+  </a>
+</header>
+
+<div class="page-hero-small">
+  <h1>The Collection</h1>
+  <p>Handcrafted originals, prints &amp; more</p>
+</div>
+
+<!-- Category filter -->
+<section class="section">
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-cat="all">All</button>
+  </div>
+  <div class="product-grid" id="product-grid"></div>
+</section>
+
+<footer class="site-footer">
+  <p>© 2025 Nika Arts Studio. All rights reserved.</p>
+</footer>
+
+<script src="js/cart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  updateCartCount();
+  await Promise.all([loadProducts(), loadCategories()]);
+
+  // Build category buttons dynamically
+  const categoryNames = CATEGORIES.length
+    ? CATEGORIES.map(c => c.name)
+    : [...new Set(PRODUCTS.map(p => p.category))];
+  const cats = ['All', ...categoryNames];
+  const filterBar = document.getElementById('filter-bar');
+  filterBar.innerHTML = cats.map((c, i) =>
+    `<button class="filter-btn${i===0?' active':''}" data-cat="${c.toLowerCase()}">${c}</button>`
+  ).join('');
+
+  const grid = document.getElementById('product-grid');
+  function render(cat) {
+    const list = cat === 'all' ? PRODUCTS : PRODUCTS.filter(p => p.category.toLowerCase() === cat);
+    grid.innerHTML = list.length
+      ? list.map(productCard).join('')
+      : `<div class="empty-cart"><p>No products in this category yet.</p></div>`;
+  }
+  render('all');
+
+  filterBar.addEventListener('click', e => {
+    if (!e.target.matches('.filter-btn')) return;
+    filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    render(e.target.dataset.cat);
+  });
+});
+</script>
+</body>
+</html>
