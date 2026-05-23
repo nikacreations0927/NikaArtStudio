@@ -17,6 +17,7 @@ function errorHandler(err, req, res, next) {
   res.status(statusCode).json({
     success: false,
     message: err.message || 'An unexpected internal server error occurred.',
+    details: err.shiprocket,
     // Only send stack traces in development mode for easier AI debugging
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });

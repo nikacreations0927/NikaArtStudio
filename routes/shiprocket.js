@@ -12,11 +12,25 @@ let cachedToken = null;
 let tokenExpiry = null;
 
 async function getToken() {
+  if (!SHIPROCKET_EMAIL || !SHIPROCKET_PASSWORD) {
+    const err = new Error('Shiprocket credentials are missing. Add SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD in .env.');
+    err.statusCode = 500;
+    throw err;
+  }
   if (cachedToken && tokenExpiry && Date.now() < tokenExpiry) return cachedToken;
   const res = await axios.post(`${SHIPROCKET_BASE}/auth/login`, { email: SHIPROCKET_EMAIL, password: SHIPROCKET_PASSWORD });
   cachedToken = res.data.token;
   tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
   return cachedToken;
+}
+
+function shiprocketError(err) {
+  const status = err.response?.status || 502;
+  const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Shiprocket request failed.';
+  const wrapped = new Error(message);
+  wrapped.statusCode = status;
+  wrapped.shiprocket = err.response?.data;
+  return wrapped;
 }
 
 async function createOrderFromPayment(orderData) {
@@ -70,12 +84,34 @@ router.get('/track/:orderId', asyncHandler(async (req, res) => {
 }));
 
 router.get('/serviceability', asyncHandler(async (req, res) => {
-  const { pincode, weight = 0.5 } = req.query;
+  const { pincode, weight = 0.5, declaredValue = 500 } = req.query;
   if (!pincode) throw new Error('Pincode is required.');
+  if (!SHIPROCKET_PICKUP_PINCODE) {
+    const err = new Error('Shiprocket pickup pincode is missing. Add SHIPROCKET_PICKUP_PINCODE in .env.');
+    err.statusCode = 500;
+    throw err;
+  }
 
   const token = await getToken();
-  const response = await axios.get(`${SHIPROCKET_BASE}/courier/serviceability/?pickup_postcode=${SHIPROCKET_PICKUP_PINCODE}&delivery_postcode=${pincode}&cod=0&weight=${weight}`, { headers: { Authorization: `Bearer ${token}` } });
-  res.json({ success: true, data: response.data });
+  try {
+    const response = await axios.get(`${SHIPROCKET_BASE}/courier/serviceability/`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        pickup_postcode: Number(SHIPROCKET_PICKUP_PINCODE),
+        delivery_postcode: Number(pincode),
+        cod: 0,
+        weight: Number(weight),
+        declared_value: Number(declaredValue),
+        is_return: 0
+      }
+    });
+    if (Number(response.data?.status) >= 400) {
+      return res.status(422).json({ success: false, message: response.data.message || 'Shiprocket serviceability check failed.', details: response.data });
+    }
+    res.json({ success: true, data: response.data });
+  } catch (err) {
+    throw shiprocketError(err);
+  }
 }));
 
 module.exports = router;
