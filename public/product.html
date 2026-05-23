@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product - Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=site-assets-1" />
+</head>
+<body>
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="products.html">Shop</a>
+    <a href="track.html">Track Order</a>
+    <a href="account.html">Account</a>
+  </nav>
+  <a href="cart.html" class="cart-icon" aria-label="View cart">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    <span class="cart-count" id="cart-count">0</span>
+  </a>
+</header>
+
+<main class="section product-detail" id="product-detail">
+  <p>Loading product...</p>
+</main>
+
+<footer class="site-footer">
+  <p>© 2026 Nika Arts Studio. All rights reserved.</p>
+</footer>
+
+<script src="js/site-assets.js?v=site-assets-1"></script>
+<script src="js/cart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  updateCartCount();
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  const detail = document.getElementById('product-detail');
+
+  if (!id) {
+    detail.innerHTML = '<div class="empty-cart-msg"><h2>Product not found</h2><a class="btn-primary" href="products.html">Back to shop</a></div>';
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/products/${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if (!data.success || !data.product || !data.product.isActive) throw new Error('Product unavailable.');
+
+    const product = data.product;
+    document.title = `${product.name} - Nika Arts Studio`;
+    const img = product.image || 'https://via.placeholder.com/700?text=Art';
+    const isOut = Number(product.stock || 0) <= 0;
+
+    detail.innerHTML = `
+      <div class="product-detail-media">
+        <img src="${escapeHtml(img)}" alt="${escapeHtml(product.name)}" />
+      </div>
+      <div class="product-detail-info">
+        <p class="eyebrow">${escapeHtml(product.category)}</p>
+        <h1>${escapeHtml(product.name)}</h1>
+        <p class="product-detail-price">${rupees(product.price)}</p>
+        <p>${escapeHtml(product.description || 'Handcrafted piece from Nika Arts Studio.')}</p>
+        <p class="stock-note">${isOut ? 'Out of stock' : `${product.stock} available`}</p>
+        <div class="product-detail-actions">
+          <button class="btn-primary" ${isOut ? 'disabled' : ''} onclick="addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})">
+            ${isOut ? 'Out of stock' : 'Add to cart'}
+          </button>
+          <a class="btn-outline" href="products.html">Back to collection</a>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    detail.innerHTML = `<div class="empty-cart-msg"><h2>Product unavailable</h2><p>${escapeHtml(err.message)}</p><a class="btn-primary" href="products.html">Back to shop</a></div>`;
+  }
+});
+</script>
+</body>
+</html>

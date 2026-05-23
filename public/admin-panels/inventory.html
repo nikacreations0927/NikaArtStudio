@@ -1,0 +1,108 @@
+<div class="inventory-shell">
+  <div class="inventory-toolbar">
+    <div class="inventory-search">
+      <label for="inventory-search">Search products</label>
+      <input type="search" id="inventory-search" placeholder="Name or category" oninput="updateInventoryFilters()" />
+    </div>
+    <div class="inventory-controls">
+      <label>
+        Category
+        <select id="inventory-category-filter" onchange="updateInventoryFilters()">
+          <option value="">All categories</option>
+        </select>
+      </label>
+      <label>
+        Status
+        <select id="inventory-status-filter" onchange="updateInventoryFilters()">
+          <option value="all">All</option>
+          <option value="active">Live</option>
+          <option value="hidden">Hidden</option>
+          <option value="low">Low stock</option>
+          <option value="out">Out of stock</option>
+        </select>
+      </label>
+      <label>
+        Sort
+        <select id="inventory-sort" onchange="updateInventoryFilters()">
+          <option value="newest">Newest first</option>
+          <option value="name">Name A-Z</option>
+          <option value="stock-low">Stock low-high</option>
+          <option value="price-high">Price high-low</option>
+        </select>
+      </label>
+    </div>
+    <div class="inventory-actions">
+      <label class="btn-outline inventory-file-btn">
+        Upload CSV
+        <input type="file" id="bulk-csv-upload" accept=".csv" onchange="handleBulkCSV(event)">
+      </label>
+      <button class="btn-outline" onclick="exportProductsCsv()">Export CSV</button>
+      <button class="btn-primary" onclick="showAddProductPanel()">Add Product</button>
+    </div>
+  </div>
+
+  <div class="inventory-summary" id="inventory-summary"></div>
+
+  <div class="admin-panel cloud-panel">
+    <div>
+      <h3>Cloud Image Library</h3>
+      <p id="storage-status">Checking storage...</p>
+    </div>
+    <label class="btn-outline inventory-file-btn">
+      Upload Images
+      <input type="file" id="bulk-image-upload" accept="image/png,image/jpeg,image/webp" multiple onchange="handleBulkImages(event)">
+    </label>
+  </div>
+  <div id="bulk-image-results" class="bulk-image-results"></div>
+
+  <div class="admin-panel" id="add-single-product-panel" hidden>
+    <div class="panel-heading">
+      <h3>Add Product</h3>
+      <button class="btn-outline small-btn" onclick="hideAddProductPanel()">Close</button>
+    </div>
+    <form id="product-form" class="admin-form product-create-form" onsubmit="addProduct(event)">
+      <input id="new-name" required placeholder="Product name" />
+      <select id="new-category"><option value="">Select category</option></select>
+      <input id="new-category-name" placeholder="Or type new category" />
+      <input id="new-price" required type="number" min="0" placeholder="Price (Rs.)" />
+      <input id="new-stock" required type="number" min="0" placeholder="Initial stock" />
+      <input id="new-description" placeholder="Short description" />
+      <button class="btn-primary" type="submit">Save Product</button>
+    </form>
+  </div>
+
+  <div class="admin-panel product-manager-panel">
+    <div class="panel-heading">
+      <div>
+        <h3>Product Manager</h3>
+        <p class="panel-subtitle">Compact view for daily catalog updates</p>
+      </div>
+      <a href="#" onclick="downloadCSVTemplate()">Download CSV Template</a>
+    </div>
+
+    <div class="admin-table-wrap inventory-table-wrap">
+      <table class="admin-table inventory-table" id="inventory-table">
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Product</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="products-body"></tbody>
+      </table>
+    </div>
+
+    <div class="inventory-pagination">
+      <span id="inventory-page-info"></span>
+      <div>
+        <button class="btn-outline small-btn" id="inventory-prev" onclick="changeInventoryPage(-1)">Previous</button>
+        <button class="btn-outline small-btn" id="inventory-next" onclick="changeInventoryPage(1)">Next</button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,23 @@
+<div class="admin-stats" id="admin-stats"></div>
+<div class="dashboard-insights">
+  <div class="admin-panel">
+    <h3>Top products</h3>
+    <div id="top-products-list"></div>
+  </div>
+  <div class="admin-panel">
+    <h3>Low stock</h3>
+    <div id="low-stock-list"></div>
+  </div>
+</div>
+<div class="admin-panel">
+  <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap;">
+    <h3>Orders & logistics</h3>
+    <button class="btn-outline" onclick="exportOrdersCsv()">Export orders CSV</button>
+  </div>
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>Order</th><th>Total</th><th>Payment</th><th>Fulfillment</th><th>Logistics</th><th></th></tr></thead>
+      <tbody id="orders-body"></tbody>
+    </table>
+  </div>
+</div>

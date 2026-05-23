@@ -1,0 +1,28 @@
+<div class="admin-panel">
+  <div class="panel-heading">
+    <div>
+      <h3>Admin Settings</h3>
+      <p class="panel-subtitle">Manage the password used for business operations.</p>
+    </div>
+  </div>
+
+  <form class="admin-settings-form" onsubmit="changeAdminPassword(event)">
+    <label>
+      Current password
+      <input id="admin-current-password" type="password" required autocomplete="current-password" />
+    </label>
+    <label>
+      New password
+      <input id="admin-new-password" type="password" required minlength="8" autocomplete="new-password" />
+    </label>
+    <label>
+      Confirm new password
+      <input id="admin-confirm-password" type="password" required minlength="8" autocomplete="new-password" />
+    </label>
+    <button class="btn-primary" type="submit">Update Password</button>
+  </form>
+
+  <p class="panel-subtitle" style="margin-top: 1rem;">
+    After a password change, this session remains active and other admin sessions are signed out.
+  </p>
+</div>

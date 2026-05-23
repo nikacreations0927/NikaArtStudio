@@ -4,20 +4,31 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nika Arts Studio</title>
-  <meta name="description" content="Handcrafted art, prints and collectibles by Nika Arts Studio." />
+  <meta property="og:title" content="Nika Arts Studio | Handcrafted Art & Collectibles" />
+  <meta property="og:description" content="Discover beautiful, handcrafted crochet pieces, resin art, and unique collectibles created with intention." />
+  
+  <meta property="og:image" content="https://yourdomain.com/images/hero.jpg" data-site-asset="logoImage" /> 
+  <meta property="og:url" content="https://yourdomain.com" />
+  <meta property="og:type" content="website" />
+  
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Nika Arts Studio" />
+  <meta name="twitter:description" content="Handcrafted Art & Collectibles." />
+  <meta name="twitter:image" content="https://yourdomain.com/images/hero.jpg" data-site-asset="logoImage" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=site-assets-1" />
 </head>
 <body>
 
-<!-- ── HEADER ── -->
 <header class="site-header">
   <a href="index.html" class="logo">Nika Arts Studio</a>
   <nav class="nav-links">
     <a href="products.html">Shop</a>
     <a href="#about">About</a>
     <a href="#contact">Contact</a>
+    <a href="track.html">Track Order</a>
+    <a href="account.html">Account</a>
   </nav>
   <a href="cart.html" class="cart-icon" aria-label="View cart">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
@@ -25,18 +36,16 @@
   </a>
 </header>
 
-<!-- ── HERO ── -->
 <section class="hero">
-  <div class="hero-content">
-    <p class="hero-eyebrow">Handcrafted with love</p>
-    <h1>Art that <em>speaks</em><br>to your soul</h1>
-    <p class="hero-sub">Unique paintings, prints, and handmade pieces from our studio in India — made to live beautifully in your home.</p>
+  <div class="hero-content reveal">
+    <p class="hero-eyebrow" id="hero-eyebrow"></p>
+    <h1 id="hero-title"></h1>
+    <p class="hero-sub" id="hero-subtitle"></p>
     <a href="products.html" class="btn-primary">Explore the collection</a>
   </div>
-  <img src="images/hero.jpg" alt="Nika Arts Studio" style="width:100%;height:100%;object-fit:cover;" />
+  <img src="images/hero.jpg" alt="Nika Arts Studio" data-site-asset="logoImage" style="width:100%;height:100%;object-fit:cover;" />
 </section>
 
-<!-- ── FEATURED PRODUCTS ── -->
 <section class="section" id="featured">
   <div class="section-header">
     <h2>Featured pieces</h2>
@@ -45,47 +54,114 @@
   <div class="product-grid" id="featured-grid"></div>
 </section>
 
-<!-- ── ABOUT ── -->
 <section class="section about-section" id="about">
-  <div class="about-text">
-    <p class="eyebrow">Our story</p>
-    <h2>Where art meets intention</h2>
-    <p>Every piece from Nika Arts Studio is created with care, using quality materials and a deep passion for expression. We believe art should be accessible, meaningful, and made to last.</p>
-    <p>Based in India, we ship across the country and beyond — straight from our studio to your door.</p>
+  <div class="about-text reveal">
+    <p class="eyebrow" id="about-eyebrow"></p>
+    <h2 id="about-title"></h2>
+    <p id="about-p1"></p>
+    <p id="about-p2"></p>
   </div>
-  <div class="about-image">
-    <img src="images/ArtistPhoto.jpeg" alt="Nika Arts Studio Artist" style="width: 80%; height: 80%; object-fit: cover; border-radius: 10px; border: 1px solid var(--border);" />
+  <div class="about-image reveal" style="transition-delay: 0.2s;">
+    <img src="images/ArtistPhoto.jpeg" alt="Nika Arts Studio Artist" data-site-asset="artistImage" style="width: 80%; height: 80%; object-fit: cover; border-radius: 10px; border: 1px solid var(--border);" />
   </div>
 </section>
 
-<!-- ── CONTACT ── -->
 <section class="section" id="contact">
-  <div class="contact-box">
-    <h2>Get in touch</h2>
-    <p>Questions about a piece? Custom order requests? We'd love to hear from you.</p>
-    <a href="mailto:nika.creations0927@gmail.com" class="btn-outline">nika.creations0927@gmail.com</a>
+  <div class="contact-box reveal">
+    <h2 id="contact-title"></h2>
+    <p id="contact-desc"></p>
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+      <a href="" id="contact-email-btn" class="btn-outline"></a>
+      <a href="" id="contact-phone-btn" class="btn-outline"></a>
+    </div>
   </div>
 </section>
 
-<!-- ── FOOTER ── -->
 <footer class="site-footer">
   <p>© 2025 Nika Arts Studio. All rights reserved.</p>
   <div class="footer-links">
-    <a href="#">Privacy Policy</a>
-    <a href="#">Shipping Policy</a>
-    <a href="#">Returns</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="shipping.html">Shipping Policy</a>
+    <a href="returns.html">Returns</a>
   </div>
 </footer>
 
+<script src="js/site-assets.js?v=site-assets-1"></script>
 <script src="js/cart.js"></script>
+
 <script>
-  // Load 4 featured products from products.js data
+  let SITE_CONTENT = {};
+
+  function populateContent() {
+    // Hero
+    document.getElementById('hero-eyebrow').textContent = SITE_CONTENT.hero.eyebrow;
+    document.getElementById('hero-title').innerHTML = SITE_CONTENT.hero.title; 
+    document.getElementById('hero-subtitle').textContent = SITE_CONTENT.hero.subtitle;
+
+    // About
+    document.getElementById('about-eyebrow').textContent = SITE_CONTENT.about.eyebrow;
+    document.getElementById('about-title').textContent = SITE_CONTENT.about.title;
+    document.getElementById('about-p1').textContent = SITE_CONTENT.about.paragraph1;
+    document.getElementById('about-p2').textContent = SITE_CONTENT.about.paragraph2;
+
+    // Contact
+    document.getElementById('contact-title').textContent = SITE_CONTENT.contact.title;
+    document.getElementById('contact-desc').textContent = SITE_CONTENT.contact.description;
+    
+    // Contact Buttons
+    const emailBtn = document.getElementById('contact-email-btn');
+    emailBtn.textContent = SITE_CONTENT.contact.email;
+    emailBtn.href = `mailto:${SITE_CONTENT.contact.email}`;
+
+    const phoneBtn = document.getElementById('contact-phone-btn');
+    phoneBtn.textContent = SITE_CONTENT.contact.phoneDisplay;
+    phoneBtn.href = `tel:${SITE_CONTENT.contact.phoneLink}`;
+  }
+
   document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Fetch the dynamic content from the database
+    try {
+      const response = await fetch('/api/content');
+      const data = await response.json();
+      if (data.success && data.content) {
+        SITE_CONTENT = data.content;
+        if (window.applySiteAssets) window.applySiteAssets(SITE_CONTENT);
+        populateContent();
+      }
+    } catch (err) {
+      console.error("Failed to load site content from database.", err);
+    }
+    
+    // 2. Load the rest of the store
     updateCartCount();
     await loadProducts();
     const featured = PRODUCTS.slice(0, 4);
     const grid = document.getElementById('featured-grid');
-    grid.innerHTML = featured.map(productCard).join('');
+    if (grid) {
+      grid.innerHTML = featured.map(productCard).join('');
+    }
+
+    // 3. START PREMIUM SCROLL ANIMATIONS
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          // Add the active class when the element enters the screen
+          entry.target.classList.add('active');
+          // Stop observing it so it doesn't animate out and in repeatedly
+          observer.unobserve(entry.target); 
+        }
+      });
+    }, { 
+      threshold: 0.15, // Triggers when 15% of the item is visible
+      rootMargin: "0px 0px -50px 0px" // Triggers slightly before it hits the bottom of the screen
+    });
+
+    // Find everything with the 'reveal' class and watch it
+    document.querySelectorAll('.reveal, .product-card').forEach((el) => {
+      // Automatically add 'reveal' class to product cards so they float up too!
+      if(el.classList.contains('product-card')) el.classList.add('reveal');
+      observer.observe(el);
+    });
   });
 </script>
 </body>

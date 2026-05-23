@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { db } = require('../db/connection');
 
-const ADMIN_SESSION_COOKIE = 'nika_admin_session';
+const CUSTOMER_SESSION_COOKIE = 'nika_customer_session';
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -23,13 +23,13 @@ function parseCookies(cookieHeader = '') {
     }, {});
 }
 
-function getSessionToken(req) {
+function getCustomerSessionToken(req) {
   const cookies = parseCookies(req.headers.cookie || '');
-  return cookies[ADMIN_SESSION_COOKIE] || '';
+  return cookies[CUSTOMER_SESSION_COOKIE] || '';
 }
 
-function getAdminFromSession(req) {
-  const token = getSessionToken(req);
+function getCustomerFromSession(req) {
+  const token = getCustomerSessionToken(req);
   if (!token) return null;
 
   const tokenHash = hashToken(token);
@@ -37,55 +37,51 @@ function getAdminFromSession(req) {
     SELECT
       s.token_hash,
       s.expires_at,
-      u.id,
-      u.username,
-      u.display_name,
-      u.role,
-      u.is_active
-    FROM admin_sessions s
-    JOIN admin_users u ON u.id = s.admin_user_id
+      c.id,
+      c.first_name,
+      c.last_name,
+      c.email,
+      c.mobile
+    FROM customer_sessions s
+    JOIN customers c ON c.id = s.customer_id
     WHERE s.token_hash = ?
       AND s.revoked_at IS NULL
       AND s.expires_at > ?
-      AND u.is_active = 1
   `).get(tokenHash, Date.now());
 
   if (!session) return null;
 
-  db.prepare("UPDATE admin_sessions SET last_seen_at = datetime('now') WHERE token_hash = ?").run(tokenHash);
+  db.prepare("UPDATE customer_sessions SET last_seen_at = datetime('now') WHERE token_hash = ?").run(tokenHash);
   return {
     id: session.id,
-    username: session.username,
-    displayName: session.display_name,
-    role: session.role,
+    firstName: session.first_name,
+    lastName: session.last_name,
+    email: session.email,
+    mobile: session.mobile,
     tokenHash: session.token_hash,
     expiresAt: session.expires_at
   };
 }
 
-function isAuthorized(req) {
-  const apiKey = process.env.ADMIN_API_KEY;
-  if (apiKey && req.headers['x-admin-key'] === apiKey) {
-    req.admin = { id: 'api-key', username: 'api-key', role: 'automation' };
-    return true;
-  }
-
-  const admin = getAdminFromSession(req);
-  if (!admin) return false;
-
-  req.admin = admin;
-  return true;
+function optionalCustomer(req, res, next) {
+  req.customer = getCustomerFromSession(req);
+  next();
 }
 
-function requireAdmin(req, res, next) {
-  if (isAuthorized(req)) return next();
-  return res.status(401).json({ success: false, message: 'Admin login required.' });
+function requireCustomer(req, res, next) {
+  const customer = getCustomerFromSession(req);
+  if (!customer) {
+    return res.status(401).json({ success: false, message: 'Please log in.' });
+  }
+
+  req.customer = customer;
+  next();
 }
 
 module.exports = {
-  ADMIN_SESSION_COOKIE,
-  getSessionToken,
+  CUSTOMER_SESSION_COOKIE,
+  getCustomerSessionToken,
   hashToken,
-  isAuthorized,
-  requireAdmin
+  optionalCustomer,
+  requireCustomer
 };

@@ -6,13 +6,17 @@
   <title>Checkout — Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=customer-auth-1" />
 </head>
 <body>
 
 <header class="site-header">
   <a href="index.html" class="logo">Nika Arts Studio</a>
-  <nav class="nav-links"></nav>
+  <nav class="nav-links">
+    <a href="products.html">Shop</a>
+    <a href="track.html">Track Order</a>
+    <a href="account.html">Account</a>
+  </nav>
   <a href="cart.html" class="cart-icon" aria-label="View cart">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
     <span class="cart-count" id="cart-count">0</span>
@@ -65,6 +69,7 @@
         <div class="form-group">
           <label>PIN code *</label>
           <input type="text" id="pincode" required placeholder="560001" maxlength="6" />
+          <p id="serviceability-note" class="field-note"></p>
         </div>
         <div class="form-group">
           <label>Country</label>
@@ -104,12 +109,15 @@
   <p>© 2025 Nika Arts Studio. All rights reserved.</p>
 </footer>
 
+<script src="js/site-assets.js?v=site-assets-1"></script>
 <script src="js/cart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await loadProducts();
   syncCartWithProducts();
+  await prefillCustomer();
+  document.getElementById('pincode').addEventListener('blur', checkServiceability);
   const cart = getCart();
   if (cart.length === 0) { window.location.href = 'cart.html'; return; }
 
@@ -199,6 +207,39 @@ async function initiatePayment() {
     btn.textContent = 'Pay now with PhonePe / UPI';
     errDiv.textContent = 'Error: ' + err.message + '. Please try again.';
     errDiv.style.display = 'block';
+  }
+}
+
+async function prefillCustomer() {
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok || !data.success) return;
+    const customer = data.customer;
+    document.getElementById('firstName').value = customer.firstName || '';
+    document.getElementById('lastName').value = customer.lastName || '';
+    document.getElementById('email').value = customer.email || '';
+    document.getElementById('phone').value = customer.mobile || customer.phone || '';
+  } catch {
+    // Guest checkout remains available.
+  }
+}
+
+async function checkServiceability() {
+  const pincode = document.getElementById('pincode').value.trim();
+  const note = document.getElementById('serviceability-note');
+  if (!/^\d{6}$/.test(pincode)) {
+    note.textContent = '';
+    return;
+  }
+  note.textContent = 'Checking delivery availability...';
+  try {
+    const res = await fetch(`/api/shiprocket/serviceability?pincode=${encodeURIComponent(pincode)}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Serviceability check failed');
+    note.textContent = 'Delivery check completed. Available courier options will be selected after payment.';
+  } catch (err) {
+    note.textContent = 'Delivery check unavailable right now. You can still continue checkout.';
   }
 }
 </script>

@@ -5,13 +5,20 @@
   "main": "server.js",
   "scripts": {
     "start": "node --no-warnings server.js",
-    "dev": "nodemon --exec \"node --no-warnings\" server.js"
+    "dev": "nodemon --exec \"node --no-warnings\" server.js",
+    "upload:keychains": "node scripts/upload-keychain-images.js",
+    "upload:site-assets": "node scripts/upload-site-assets.js",
+    "admin:seed": "node scripts/seed-admin-user.js"
   },
   "dependencies": {
     "axios": "^1.6.7",
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.1",
-    "express": "^4.18.2"
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^8.0.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

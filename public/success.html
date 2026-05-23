@@ -6,12 +6,12 @@
   <title>Order Confirmed — Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=site-assets-1" />
 </head>
 <body>
 <header class="site-header">
   <a href="index.html" class="logo">Nika Arts Studio</a>
-  <nav class="nav-links"><a href="products.html">Shop</a></nav>
+  <nav class="nav-links"><a href="products.html">Shop</a><a href="track.html">Track Order</a><a href="account.html">Account</a></nav>
   <a href="cart.html" class="cart-icon" aria-label="View cart">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
     <span class="cart-count" id="cart-count">0</span>
@@ -34,6 +34,7 @@
   </div>
 </section>
 
+<script src="js/site-assets.js?v=site-assets-1"></script>
 <script src="js/cart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (data.success && data.status === 'PAYMENT_SUCCESS') {
       document.getElementById('order-id-display').textContent = 'Order ID: ' + txnId;
+      document.querySelector('#success-box .btn-primary').insertAdjacentHTML('beforebegin', `<a href="track.html?order=${encodeURIComponent(txnId)}" class="btn-outline" style="margin-top:1rem">Track this order</a>`);
       // Clear cart
       saveCart([]);
       updateCartCount();
@@ -60,10 +62,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('fail-box').style.display = 'block';
     }
   } catch(e) {
-    // If backend unreachable, still show success (verify separately)
+    document.getElementById('success-msg').textContent = 'We could not verify the payment status yet. Please keep your order ID and check again in a few minutes.';
     document.getElementById('order-id-display').textContent = txnId ? 'Order ID: ' + txnId : '';
-    saveCart([]);
-    updateCartCount();
   }
 });
 </script>

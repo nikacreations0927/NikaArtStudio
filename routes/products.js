@@ -1,16 +1,15 @@
+// routes/products.js
 const express = require('express');
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const { createCategory, db, getCategoryByName, getProduct, getProducts } = require('../db');
+const { db, createCategory, getCategoryByName, getProduct, getProducts } = require('../db');
 const { isAuthorized, requireAdmin } = require('../middleware/adminAuth');
+const asyncHandler = require('../middleware/asyncHandler');
+const { deleteProductImage, hasCloudinaryConfig, uploadProductImage } = require('../services/storage');
 
 const router = express.Router();
 const nowSql = "datetime('now')";
-const productImagesDir = path.join(__dirname, '..', 'public', 'images', 'products');
 
-fs.mkdirSync(productImagesDir, { recursive: true });
-
+// --- Helper Functions ---
 function cleanText(value, fallback = '') {
   if (value === undefined || value === null) return fallback;
   return String(value).trim();
@@ -49,229 +48,263 @@ function ensureCategory(name) {
   return createCategory(name);
 }
 
-function safeFilePart(value) {
-  return String(value || 'product')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || 'product';
+async function permanentlyRemoveProduct(productId) {
+  const existing = getProduct(productId);
+  if (!existing) return { status: 404, body: { success: false, message: 'Product not found.' } };
+
+  const orderUsage = db.prepare('SELECT COUNT(*) AS count FROM order_items WHERE product_id = ?').get(productId);
+  if (orderUsage.count > 0) {
+    db.prepare(`UPDATE products SET is_active = 0, is_deleted = 1, updated_at = ${nowSql} WHERE id = ?`).run(productId);
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: 'Product removed from admin and storefront. Past order history was preserved.',
+        archived: true,
+        imageCleanup: { provider: 'archived', deleted: false }
+      }
+    };
+  }
+
+  const imageUsage = existing.image
+    ? db.prepare('SELECT COUNT(*) AS count FROM products WHERE image = ? AND id != ?').get(existing.image, productId)
+    : { count: 0 };
+
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM inventory_events WHERE product_id = ?').run(productId);
+    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  let imageCleanup = { provider: 'shared', deleted: false };
+  if (imageUsage.count === 0) {
+    try {
+      imageCleanup = await deleteProductImage(existing.image);
+    } catch (err) {
+      imageCleanup = { provider: 'unknown', deleted: false, error: err.message || 'Image cleanup failed.' };
+    }
+  }
+
+  return { status: 200, body: { success: true, message: 'Product permanently removed.', imageCleanup } };
 }
 
-function parseImageData(imageData) {
-  const match = String(imageData || '').match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([a-zA-Z0-9+/=]+)$/);
-  if (!match) throw new Error('Upload a JPEG, PNG, or WEBP image.');
+// --- API Routes ---
 
-  const mime = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
-  const extByMime = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp'
-  };
-  const buffer = Buffer.from(match[2], 'base64');
-  const maxBytes = 4 * 1024 * 1024;
+router.get('/storage/status', requireAdmin, asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    storage: hasCloudinaryConfig() ? 'cloudinary' : 'local',
+    cloudinaryConfigured: hasCloudinaryConfig(),
+    folder: process.env.CLOUDINARY_PRODUCT_FOLDER || 'nika-arts/products'
+  });
+}));
 
-  if (buffer.length === 0) throw new Error('Image file is empty.');
-  if (buffer.length > maxBytes) throw new Error('Image must be 4 MB or smaller.');
-
-  return { buffer, ext: extByMime[mime] };
-}
-
-router.get('/', (req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
   const includeInactive = req.query.includeInactive === 'true';
   if (includeInactive && !isAuthorized(req)) {
     return res.status(401).json({ success: false, message: 'Admin login required.' });
   }
   res.json({ success: true, products: getProducts({ includeInactive }) });
-});
+}));
 
-router.get('/:id', (req, res) => {
+router.get('/:id', asyncHandler(async (req, res) => {
   const product = getProduct(req.params.id);
   if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
   res.json({ success: true, product });
-});
+}));
 
-router.post('/', requireAdmin, (req, res) => {
+router.post('/', requireAdmin, asyncHandler(async (req, res) => {
+  const product = cleanProductPayload(req.body);
+  const id = product.id || nextProductId();
+  ensureCategory(product.category);
+
+  db.exec('BEGIN');
   try {
-    const product = cleanProductPayload(req.body);
-    const id = product.id || nextProductId();
-    ensureCategory(product.category);
-
-    db.exec('BEGIN');
-    try {
-      db.prepare(`
-        INSERT INTO products (id, name, price, category, image, description, stock, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        id,
-        product.name,
-        product.price,
-        product.category,
-        product.image,
-        product.description,
-        product.stock,
-        product.isActive ? 1 : 0
-      );
-
-      db.prepare(`
-        INSERT INTO inventory_events (product_id, type, quantity_delta, note)
-        VALUES (?, 'CREATE_PRODUCT', ?, 'Initial product stock')
-      `).run(id, product.stock);
-
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
-
-    res.status(201).json({ success: true, product: getProduct(id) });
+    db.prepare(`INSERT INTO products (id, name, price, category, image, description, stock, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, product.name, product.price, product.category, product.image, product.description, product.stock, product.isActive ? 1 : 0);
+    db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'CREATE_PRODUCT', ?, 'Initial product stock')`).run(id, product.stock);
+    db.exec('COMMIT');
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    db.exec('ROLLBACK');
+    throw err;
   }
-});
 
-router.put('/:id', requireAdmin, (req, res) => {
-  try {
-    const existing = getProduct(req.params.id);
-    if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
+  res.status(201).json({ success: true, product: getProduct(id) });
+}));
 
-    const product = cleanProductPayload(req.body, { partial: true });
-    const next = {
-      name: product.name || existing.name,
-      price: Number.isInteger(product.price) && product.price >= 0 ? product.price : existing.price,
-      category: product.category || existing.category,
-      image: product.image !== '' ? product.image : existing.image,
-      description: product.description !== '' ? product.description : existing.description,
-      stock: Number.isInteger(product.stock) && product.stock >= 0 ? product.stock : existing.stock,
-      isActive: req.body.isActive === undefined ? existing.isActive : product.isActive
-    };
-    ensureCategory(next.category);
-
-    db.exec('BEGIN');
-    try {
-      db.prepare(`
-        UPDATE products
-        SET name = ?, price = ?, category = ?, image = ?, description = ?, stock = ?, is_active = ?, updated_at = ${nowSql}
-        WHERE id = ?
-      `).run(
-        next.name,
-        next.price,
-        next.category,
-        next.image,
-        next.description,
-        next.stock,
-        next.isActive ? 1 : 0,
-        req.params.id
-      );
-
-      const stockDelta = next.stock - existing.stock;
-      if (stockDelta !== 0) {
-        db.prepare(`
-          INSERT INTO inventory_events (product_id, type, quantity_delta, note)
-          VALUES (?, 'MANUAL_STOCK_UPDATE', ?, 'Stock updated through product API')
-        `).run(req.params.id, stockDelta);
-      }
-
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
-
-    res.json({ success: true, product: getProduct(req.params.id) });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-router.patch('/:id/stock', requireAdmin, (req, res) => {
-  try {
-    const existing = getProduct(req.params.id);
-    if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
-
-    const mode = cleanText(req.body.mode, 'set');
-    const quantity = Number(req.body.quantity);
-    const note = cleanText(req.body.note, 'Stock adjusted through product API');
-    if (!Number.isInteger(quantity)) throw new Error('Quantity must be an integer.');
-
-    const nextStock = mode === 'adjust' ? existing.stock + quantity : quantity;
-    if (nextStock < 0) throw new Error('Stock cannot be negative.');
-    const delta = nextStock - existing.stock;
-
-    db.exec('BEGIN');
-    try {
-      db.prepare(`
-        UPDATE products
-        SET stock = ?, updated_at = ${nowSql}
-        WHERE id = ?
-      `).run(nextStock, req.params.id);
-
-      if (delta !== 0) {
-        db.prepare(`
-          INSERT INTO inventory_events (product_id, type, quantity_delta, note)
-          VALUES (?, 'MANUAL_STOCK_UPDATE', ?, ?)
-        `).run(req.params.id, delta, note);
-      }
-
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
-    }
-
-    res.json({ success: true, product: getProduct(req.params.id) });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-router.post('/:id/image', requireAdmin, (req, res) => {
-  try {
-    const existing = getProduct(req.params.id);
-    if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
-
-    const { buffer, ext } = parseImageData(req.body.imageData);
-    const fileName = `${safeFilePart(existing.name)}-${req.params.id}-${Date.now()}.${ext}`;
-    const absolutePath = path.join(productImagesDir, fileName);
-    const relativePath = `images/products/${fileName}`;
-
-    fs.writeFileSync(absolutePath, buffer);
-
-    db.prepare(`
-      UPDATE products
-      SET image = ?, updated_at = ${nowSql}
-      WHERE id = ?
-    `).run(relativePath, req.params.id);
-
-    res.json({ success: true, image: relativePath, product: getProduct(req.params.id) });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-router.delete('/:id', requireAdmin, (req, res) => {
+router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
   const existing = getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
-  db.prepare(`
-    UPDATE products
-    SET is_active = 0, updated_at = ${nowSql}
-    WHERE id = ?
-  `).run(req.params.id);
+  const product = cleanProductPayload(req.body, { partial: true });
+  const next = {
+    name: product.name || existing.name,
+    price: Number.isInteger(product.price) && product.price >= 0 ? product.price : existing.price,
+    category: product.category || existing.category,
+    image: product.image !== '' ? product.image : existing.image,
+    description: product.description !== '' ? product.description : existing.description,
+    stock: Number.isInteger(product.stock) && product.stock >= 0 ? product.stock : existing.stock,
+    isActive: req.body.isActive === undefined ? existing.isActive : product.isActive
+  };
+  ensureCategory(next.category);
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`UPDATE products SET name = ?, price = ?, category = ?, image = ?, description = ?, stock = ?, is_active = ?, updated_at = ${nowSql} WHERE id = ?`).run(next.name, next.price, next.category, next.image, next.description, next.stock, next.isActive ? 1 : 0, req.params.id);
+
+    const stockDelta = next.stock - existing.stock;
+    if (stockDelta !== 0) {
+      db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'MANUAL_STOCK_UPDATE', ?, 'Stock updated through product API')`).run(req.params.id, stockDelta);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 
   res.json({ success: true, product: getProduct(req.params.id) });
-});
+}));
 
-router.get('/:id/inventory-events', requireAdmin, (req, res) => {
+router.patch('/:id/stock', requireAdmin, asyncHandler(async (req, res) => {
   const existing = getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
-  const events = db.prepare(`
-    SELECT * FROM inventory_events
-    WHERE product_id = ?
-    ORDER BY created_at DESC, id DESC
-  `).all(req.params.id);
+  const mode = cleanText(req.body.mode, 'set');
+  const quantity = Number(req.body.quantity);
+  const note = cleanText(req.body.note, 'Stock adjusted through product API');
+  if (!Number.isInteger(quantity)) throw new Error('Quantity must be an integer.');
 
+  const nextStock = mode === 'adjust' ? existing.stock + quantity : quantity;
+  if (nextStock < 0) throw new Error('Stock cannot be negative.');
+  const delta = nextStock - existing.stock;
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`UPDATE products SET stock = ?, updated_at = ${nowSql} WHERE id = ?`).run(nextStock, req.params.id);
+    if (delta !== 0) {
+      db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'MANUAL_STOCK_UPDATE', ?, ?)`).run(req.params.id, delta, note);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  res.json({ success: true, product: getProduct(req.params.id) });
+}));
+
+router.post('/:id/image', requireAdmin, asyncHandler(async (req, res) => {
+  const existing = getProduct(req.params.id);
+  if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
+
+  const uploaded = await uploadProductImage({
+    imageData: req.body.imageData,
+    productName: existing.name,
+    productId: req.params.id
+  });
+  db.prepare(`UPDATE products SET image = ?, updated_at = ${nowSql} WHERE id = ?`).run(uploaded.url, req.params.id);
+
+  res.json({ success: true, image: uploaded.url, storage: uploaded, product: getProduct(req.params.id) });
+}));
+
+router.post('/images/bulk', requireAdmin, asyncHandler(async (req, res) => {
+  const files = req.body.files;
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error('No image files provided.');
+  }
+  if (files.length > 30) {
+    throw new Error('Upload up to 30 images at a time.');
+  }
+
+  const uploaded = [];
+  for (const file of files) {
+    const result = await uploadProductImage({
+      imageData: file.imageData,
+      productName: file.name,
+      productId: file.name
+    });
+    uploaded.push({
+      name: file.name,
+      url: result.url,
+      provider: result.provider,
+      publicId: result.publicId,
+      bytes: result.bytes
+    });
+  }
+
+  res.status(201).json({ success: true, uploaded, storage: hasCloudinaryConfig() ? 'cloudinary' : 'local' });
+}));
+
+router.delete('/permanent/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const result = await permanentlyRemoveProduct(req.params.id);
+  res.status(result.status).json(result.body);
+}));
+
+router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const existing = getProduct(req.params.id);
+  if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
+
+  db.prepare(`UPDATE products SET is_active = 0, updated_at = ${nowSql} WHERE id = ?`).run(req.params.id);
+  res.json({ success: true, product: getProduct(req.params.id) });
+}));
+
+router.delete('/:id/permanent', requireAdmin, asyncHandler(async (req, res) => {
+  const result = await permanentlyRemoveProduct(req.params.id);
+  res.status(result.status).json(result.body);
+}));
+
+router.get('/:id/inventory-events', requireAdmin, asyncHandler(async (req, res) => {
+  const existing = getProduct(req.params.id);
+  if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
+
+  const events = db.prepare(`SELECT * FROM inventory_events WHERE product_id = ? ORDER BY created_at DESC, id DESC`).all(req.params.id);
   res.json({ success: true, events });
-});
+}));
+
+// --- Bulk Operations ---
+router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
+  const { products } = req.body;
+  if (!Array.isArray(products) || products.length === 0) {
+    throw new Error('No products provided for bulk upload.');
+  }
+
+  let addedCount = 0;
+  
+  db.exec('BEGIN');
+  try {
+    for (const p of products) {
+      // Basic validation
+      if (!p.name || !p.category) continue; 
+      
+      const id = nextProductId();
+      const price = Number.isInteger(Number(p.price)) ? Number(p.price) : 0;
+      const stock = Number.isInteger(Number(p.stock)) ? Number(p.stock) : 0;
+      
+      // Ensure the category exists in the DB
+      const existingCategory = db.prepare('SELECT * FROM categories WHERE lower(name) = lower(?)').get(p.category);
+      if (!existingCategory) {
+        db.prepare(`INSERT INTO categories (name) VALUES (?)`).run(p.category.trim());
+      }
+
+      // Insert the product
+      db.prepare(`
+        INSERT INTO products (id, name, price, category, image, description, stock, is_active) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+      `).run(id, p.name.trim(), price, p.category.trim(), String(p.image || '').trim(), String(p.description || '').trim(), stock);
+      
+      db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'BULK_CREATE', ?, 'Bulk CSV Upload')`).run(id, stock);
+      addedCount++;
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  res.status(201).json({ success: true, message: `Successfully added ${addedCount} products.` });
+}));
 
 module.exports = router;

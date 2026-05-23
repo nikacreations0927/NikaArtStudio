@@ -259,6 +259,25 @@ The storefront loads products from `/api/products`; products are no longer manag
 
 Important: the database integration uses Node's built-in SQLite support, so run this project on Node 24+.
 
+### Free cloud image storage
+
+Product image uploads can use Cloudinary instead of local disk storage.
+
+1. Create a free Cloudinary account.
+2. In Cloudinary, open Dashboard / API keys.
+3. Add these values to `.env`:
+
+```bash
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_PRODUCT_FOLDER=nika-arts/products
+```
+
+After these are set, admin product image uploads are sent to Cloudinary and the product stores the Cloudinary CDN URL in SQLite. If the variables are missing, uploads fall back to `public/images/products/` for local development.
+
+The admin Inventory screen also includes a **Cloud Image Library** uploader where you can upload multiple JPEG, PNG, or WEBP files at once and copy the resulting cloud URLs.
+
 ### Opening the database directly
 
 SQLite is a file database, so it does not have its own database username/password login. Your admin username/password protects the backend/admin APIs. The database file itself is:

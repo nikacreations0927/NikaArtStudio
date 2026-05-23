@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Track Order - Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=customer-auth-1" />
+</head>
+<body>
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="products.html">Shop</a>
+    <a href="track.html" class="active">Track Order</a>
+    <a href="account.html">Account</a>
+  </nav>
+  <a href="cart.html" class="cart-icon" aria-label="View cart">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    <span class="cart-count" id="cart-count">0</span>
+  </a>
+</header>
+
+<div class="page-hero-small">
+  <h1>Track your order</h1>
+  <p>Use your order ID and the email or phone used at checkout.</p>
+</div>
+
+<main class="section narrow-section">
+  <form class="checkout-form tracking-form" onsubmit="trackOrder(event)">
+    <input id="track-order-id" required placeholder="Order ID" />
+    <input id="track-contact" placeholder="Email or phone number" />
+    <button class="btn-primary" type="submit">Track order</button>
+  </form>
+  <p id="track-session-note" class="field-note"></p>
+  <div id="track-result" class="tracking-result"></div>
+</main>
+
+<footer class="site-footer">
+  <p>(c) 2026 Nika Arts Studio. All rights reserved.</p>
+</footer>
+
+<script src="js/site-assets.js?v=site-assets-1"></script>
+<script src="js/cart.js"></script>
+<script>
+let TRACK_CUSTOMER = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  updateCartCount();
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('order')) document.getElementById('track-order-id').value = params.get('order');
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (res.ok && data.success) {
+      TRACK_CUSTOMER = data.customer;
+      document.getElementById('track-contact').placeholder = 'Email or phone number (optional while logged in)';
+      document.getElementById('track-session-note').textContent = `Signed in as ${TRACK_CUSTOMER.email}. You can track your own orders without entering contact again.`;
+    } else {
+      document.getElementById('track-contact').required = true;
+    }
+  } catch {
+    document.getElementById('track-contact').required = true;
+  }
+});
+
+async function trackOrder(event) {
+  event.preventDefault();
+  const orderId = document.getElementById('track-order-id').value.trim();
+  const contact = document.getElementById('track-contact').value.trim();
+  const result = document.getElementById('track-result');
+  const queryKey = contact.includes('@') ? 'email' : 'phone';
+  if (!contact && !TRACK_CUSTOMER) {
+    result.innerHTML = '<div class="error-msg">Enter the email or phone used for this order.</div>';
+    return;
+  }
+
+  result.innerHTML = '<p>Checking order status...</p>';
+  try {
+    const query = contact ? `?${queryKey}=${encodeURIComponent(contact)}` : '';
+    const res = await fetch(`/api/orders/track/${encodeURIComponent(orderId)}${query}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Could not find that order.');
+    const order = data.order;
+    result.innerHTML = `
+      <div class="admin-panel">
+        <h2>${escapeHtml(order.id)}</h2>
+        <div class="status-grid">
+          <div><span>Payment</span><strong>${escapeHtml(order.paymentStatus)}</strong></div>
+          <div><span>Fulfillment</span><strong>${escapeHtml(order.fulfillmentStatus)}</strong></div>
+          <div><span>Logistics</span><strong>${escapeHtml(order.logisticsStatus)}</strong></div>
+          <div><span>Total</span><strong>${rupees(order.total)}</strong></div>
+        </div>
+        <h3>Items</h3>
+        ${order.items.map(item => `<p>${escapeHtml(item.name)} x ${item.qty}</p>`).join('')}
+      </div>
+    `;
+  } catch (err) {
+    result.innerHTML = `<div class="error-msg">${escapeHtml(err.message)}</div>`;
+  }
+}
+</script>
+</body>
+</html>

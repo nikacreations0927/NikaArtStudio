@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account - Nika Arts Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css?v=customer-auth-1" />
+</head>
+<body>
+<header class="site-header">
+  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="products.html">Shop</a>
+    <a href="track.html">Track Order</a>
+    <a href="account.html" class="active">Account</a>
+  </nav>
+  <a href="cart.html" class="cart-icon" aria-label="View cart">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    <span class="cart-count" id="cart-count">0</span>
+  </a>
+</header>
+
+<div class="page-hero-small">
+  <h1>Your account</h1>
+  <p>Save your details and review orders placed with your email.</p>
+</div>
+
+<main class="section account-layout">
+  <section class="admin-panel" id="account-session"></section>
+  <div id="account-message" class="admin-message"></div>
+
+  <section class="admin-panel" id="login-panel">
+    <h2>Log in</h2>
+    <form class="checkout-form" onsubmit="loginCustomer(event)">
+      <input id="login-email" type="email" required placeholder="Email" autocomplete="email" />
+      <input id="login-password" type="password" required placeholder="Password" autocomplete="current-password" />
+      <button class="btn-primary" type="submit">Log in</button>
+    </form>
+    <button class="btn-outline small-btn" type="button" onclick="showForgotPassword()">Forgot password?</button>
+  </section>
+
+  <section class="admin-panel" id="register-panel">
+    <h2>Create account</h2>
+    <form class="checkout-form" onsubmit="registerCustomer(event)">
+      <div class="form-row">
+        <input id="register-first" required placeholder="First name" />
+        <input id="register-last" placeholder="Last name" />
+      </div>
+      <input id="register-email" type="email" required placeholder="Email" autocomplete="email" />
+      <input id="register-mobile" type="tel" placeholder="Phone" autocomplete="tel" />
+      <input id="register-password" type="password" required minlength="8" placeholder="Password" autocomplete="new-password" />
+      <button class="btn-primary" type="submit">Create account</button>
+    </form>
+  </section>
+
+  <section class="admin-panel" id="forgot-panel" hidden>
+    <h2>Reset password</h2>
+    <form class="checkout-form" onsubmit="requestPasswordReset(event)">
+      <input id="forgot-email" type="email" required placeholder="Account email" autocomplete="email" />
+      <button class="btn-primary" type="submit">Send reset link</button>
+      <button class="btn-outline" type="button" onclick="hideForgotPassword()">Back to login</button>
+    </form>
+    <div id="reset-dev-link" class="field-note"></div>
+  </section>
+
+  <section class="admin-panel account-orders-panel" id="reset-panel" hidden>
+    <h2>Set new password</h2>
+    <form class="checkout-form" onsubmit="resetCustomerPassword(event)">
+      <input id="reset-password" type="password" required minlength="8" placeholder="New password" autocomplete="new-password" />
+      <input id="reset-confirm-password" type="password" required minlength="8" placeholder="Confirm new password" autocomplete="new-password" />
+      <button class="btn-primary" type="submit">Reset password</button>
+    </form>
+  </section>
+
+  <section class="admin-panel" id="password-panel" hidden>
+    <h2>Password</h2>
+    <form class="checkout-form" onsubmit="changeCustomerPassword(event)">
+      <input id="current-password" type="password" required placeholder="Current password" autocomplete="current-password" />
+      <input id="new-password" type="password" required minlength="8" placeholder="New password" autocomplete="new-password" />
+      <input id="confirm-password" type="password" required minlength="8" placeholder="Confirm new password" autocomplete="new-password" />
+      <button class="btn-primary" type="submit">Update password</button>
+    </form>
+  </section>
+
+  <section class="admin-panel account-orders-panel">
+    <h2>Orders</h2>
+    <div id="account-orders"><p>Log in to see your recent orders.</p></div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>(c) 2026 Nika Arts Studio. All rights reserved.</p>
+</footer>
+
+<script src="js/site-assets.js?v=site-assets-1"></script>
+<script src="js/cart.js"></script>
+<script>
+let CURRENT_CUSTOMER = null;
+let RESET_TOKEN = '';
+
+document.addEventListener('DOMContentLoaded', async () => {
+  updateCartCount();
+  RESET_TOKEN = new URLSearchParams(window.location.search).get('resetToken') || '';
+  if (RESET_TOKEN) {
+    document.getElementById('reset-panel').hidden = false;
+    showAccountMessage('Enter a new password to complete your reset.');
+  }
+  await renderAccount();
+});
+
+function showAccountMessage(message, isError = false) {
+  const el = document.getElementById('account-message');
+  el.textContent = message || '';
+  el.className = isError ? 'admin-message error-msg' : 'admin-message';
+}
+
+function showForgotPassword() {
+  document.getElementById('forgot-panel').hidden = false;
+  document.getElementById('forgot-email').value = document.getElementById('login-email').value || '';
+  document.getElementById('forgot-email').focus();
+}
+
+function hideForgotPassword() {
+  document.getElementById('forgot-panel').hidden = true;
+  document.getElementById('reset-dev-link').innerHTML = '';
+}
+
+function setCustomer(customer) {
+  CURRENT_CUSTOMER = customer;
+  localStorage.setItem('nika_customer', JSON.stringify(customer));
+}
+
+async function logoutCustomer() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  localStorage.removeItem('nika_customer');
+  CURRENT_CUSTOMER = null;
+  showAccountMessage('Logged out.');
+  await renderAccount();
+}
+
+async function loginCustomer(event) {
+  event.preventDefault();
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Login failed');
+    setCustomer(data.customer);
+    document.getElementById('login-password').value = '';
+    showAccountMessage('Logged in.');
+    await renderAccount();
+  } catch (err) {
+    showAccountMessage(err.message, true);
+  }
+}
+
+async function registerCustomer(event) {
+  event.preventDefault();
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: document.getElementById('register-first').value,
+        lastName: document.getElementById('register-last').value,
+        email: document.getElementById('register-email').value,
+        mobile: document.getElementById('register-mobile').value,
+        password: document.getElementById('register-password').value
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Registration failed');
+    setCustomer(data.customer);
+    event.target.reset();
+    showAccountMessage('Account created.');
+    await renderAccount();
+  } catch (err) {
+    showAccountMessage(err.message, true);
+  }
+}
+
+async function requestPasswordReset(event) {
+  event.preventDefault();
+  try {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('forgot-email').value })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Could not send reset link.');
+    showAccountMessage(data.message);
+    document.getElementById('reset-dev-link').innerHTML = data.resetUrl
+      ? `Local reset link: <a href="${escapeHtml(data.resetUrl)}">Open reset link</a>`
+      : '';
+  } catch (err) {
+    showAccountMessage(err.message, true);
+  }
+}
+
+async function resetCustomerPassword(event) {
+  event.preventDefault();
+  const password = document.getElementById('reset-password').value;
+  const confirm = document.getElementById('reset-confirm-password').value;
+  if (password !== confirm) return showAccountMessage('New passwords do not match.', true);
+
+  try {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: RESET_TOKEN, newPassword: password })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Could not reset password.');
+    setCustomer(data.customer);
+    RESET_TOKEN = '';
+    document.getElementById('reset-panel').hidden = true;
+    window.history.replaceState({}, '', 'account.html');
+    showAccountMessage('Password reset successful. You are logged in.');
+    await renderAccount();
+  } catch (err) {
+    showAccountMessage(err.message, true);
+  }
+}
+
+async function changeCustomerPassword(event) {
+  event.preventDefault();
+  const currentPassword = document.getElementById('current-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  const confirmPassword = document.getElementById('confirm-password').value;
+  if (newPassword !== confirmPassword) return showAccountMessage('New passwords do not match.', true);
+
+  try {
+    const res = await fetch('/api/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Could not update password.');
+    event.target.reset();
+    showAccountMessage('Password updated. Other sessions were signed out.');
+  } catch (err) {
+    showAccountMessage(err.message, true);
+  }
+}
+
+async function renderAccount() {
+  const session = document.getElementById('account-session');
+  const ordersEl = document.getElementById('account-orders');
+  const loginPanel = document.getElementById('login-panel');
+  const registerPanel = document.getElementById('register-panel');
+  const passwordPanel = document.getElementById('password-panel');
+
+  localStorage.removeItem('nika_customer_token');
+
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error('guest');
+    setCustomer(data.customer);
+  } catch {
+    CURRENT_CUSTOMER = null;
+    localStorage.removeItem('nika_customer');
+  }
+
+  if (!CURRENT_CUSTOMER) {
+    loginPanel.hidden = false;
+    registerPanel.hidden = false;
+    passwordPanel.hidden = true;
+    session.innerHTML = '<h2>Welcome</h2><p>Log in or create an account to keep your order history close.</p>';
+    ordersEl.innerHTML = '<p>Log in to see your recent orders.</p>';
+    return;
+  }
+
+  loginPanel.hidden = true;
+  registerPanel.hidden = true;
+  passwordPanel.hidden = false;
+  const customer = CURRENT_CUSTOMER;
+  session.innerHTML = `
+    <h2>Hello, ${escapeHtml(customer.firstName || customer.email)}</h2>
+    <p>${escapeHtml(customer.email)}</p>
+    <button class="btn-outline" onclick="logoutCustomer()">Log out</button>
+  `;
+
+  try {
+    const res = await fetch('/api/auth/orders');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Could not load orders.');
+    ordersEl.innerHTML = data.orders.length ? data.orders.map(order => `
+      <div class="order-card">
+        <strong>${escapeHtml(order.id)}</strong>
+        <span>${rupees(order.total)}</span>
+        <span>${escapeHtml(order.fulfillmentStatus)}</span>
+        <a href="track.html?order=${encodeURIComponent(order.id)}">Track</a>
+      </div>
+    `).join('') : '<p>No orders found for this email yet.</p>';
+  } catch (err) {
+    ordersEl.innerHTML = `<p class="error-msg">${escapeHtml(err.message)}</p>`;
+  }
+}
+</script>
+</body>
+</html>

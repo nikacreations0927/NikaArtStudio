@@ -1,0 +1,50 @@
+<div class="admin-panel">
+  <h3>Site Content (CMS)</h3>
+  <form id="content-form" class="admin-form" onsubmit="saveCms(event)" style="display: flex; flex-direction: column; gap: 1.5rem; max-width: 800px;">
+    
+    <div style="background: var(--surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.8rem;">
+      <h4 style="margin: 0;">Hero Section</h4>
+      <input type="text" id="edit-hero-eyebrow" required placeholder="Eyebrow text" />
+      <input type="text" id="edit-hero-title" required placeholder="Main Title (HTML tags allowed)" />
+      <textarea id="edit-hero-subtitle" required placeholder="Subtitle" style="resize: vertical; min-height: 80px; padding: 0.8rem; border-radius: 4px;"></textarea>
+    </div>
+
+    <div style="background: var(--surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 1rem;">
+      <h4 style="margin: 0;">Website Images</h4>
+      <p style="margin: 0; color: var(--muted);">Upload these once and the storefront will load them from Cloudinary.</p>
+
+      <div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+        <div class="cms-asset-card">
+          <strong>Logo image</strong>
+          <img id="cms-logo-preview" alt="Current logo preview" class="cms-asset-preview" />
+          <input type="file" id="cms-logo-file" accept="image/jpeg,image/png,image/webp" />
+          <button type="button" class="btn-outline" onclick="uploadSiteAsset('logoImage', 'cms-logo-file')">Upload Logo</button>
+        </div>
+
+        <div class="cms-asset-card">
+          <strong>Artist image</strong>
+          <img id="cms-artist-preview" alt="Current artist preview" class="cms-asset-preview" />
+          <input type="file" id="cms-artist-file" accept="image/jpeg,image/png,image/webp" />
+          <button type="button" class="btn-outline" onclick="uploadSiteAsset('artistImage', 'cms-artist-file')">Upload Artist</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: var(--surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.8rem;">
+      <h4 style="margin: 0;">About Section</h4>
+      <input type="text" id="edit-about-eyebrow" required placeholder="Eyebrow text" />
+      <input type="text" id="edit-about-title" required placeholder="Section Title" />
+      <textarea id="edit-about-p1" required placeholder="Paragraph 1" style="resize: vertical; min-height: 80px; padding: 0.8rem; border-radius: 4px;"></textarea>
+      <textarea id="edit-about-p2" required placeholder="Paragraph 2" style="resize: vertical; min-height: 80px; padding: 0.8rem; border-radius: 4px;"></textarea>
+    </div>
+    
+    <div style="background: var(--surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.8rem;">
+      <h4 style="margin: 0;">Contact Details</h4>
+      <input type="email" id="edit-contact-email" required placeholder="Email Address" />
+      <input type="text" id="edit-contact-phone-display" required placeholder="Display Phone (e.g., +91 98765 43210)" />
+      <input type="text" id="edit-contact-phone-link" required placeholder="Phone Link (e.g., +919876543210)" />
+    </div>
+    
+    <button class="btn-primary" type="submit" style="align-self: flex-start;">Save Content</button>
+  </form>
+</div>
