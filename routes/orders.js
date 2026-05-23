@@ -20,9 +20,7 @@ router.post('/checkout', asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Customer details missing.' });
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
-  const shipping = subtotal >= 999 ? 0 : 99;
-  const order = createOrderFromCart(cart, customer, { shipping });
+  const order = createOrderFromCart(cart, customer);
   const paidOrder = markOrderPaid(order.id, 'sim_' + Date.now(), { simulated: true });
 
   // ==========================================

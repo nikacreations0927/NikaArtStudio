@@ -12,6 +12,7 @@ const orderRoutes = require('./routes/orders');
 const productRoutes = require('./routes/products');
 const categoryRoutes = require('./routes/categories');
 const contentRoutes = require('./routes/content');
+const configRoutes = require('./routes/config');
 
 // Middleware Imports
 const errorHandler = require('./middleware/errorHandler');
@@ -42,6 +43,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/config', configRoutes);
 
 /**
  * 4. Health Check Endpoint

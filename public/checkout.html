@@ -85,6 +85,7 @@
     <div class="order-items" id="order-items"></div>
     <div class="summary-row"><span>Subtotal</span><span id="co-subtotal">₹0</span></div>
     <div class="summary-row"><span>Shipping</span><span id="co-shipping">₹0</span></div>
+    <p id="shipping-policy-note" class="field-note shipping-policy-note"></p>
     <div class="summary-row total-row"><span>Total</span><span id="co-total">₹0</span></div>
 
     <div class="payment-section">
@@ -115,6 +116,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await loadProducts();
+  await loadStoreConfig();
   syncCartWithProducts();
   await prefillCustomer();
   document.getElementById('pincode').addEventListener('blur', checkServiceability);
@@ -129,11 +131,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     </div>
   `).join('');
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const shipping = subtotal >= 999 ? 0 : 99; // Free shipping above ₹999
+  const { subtotal, shipping, total } = calculateCartTotals(cart);
   document.getElementById('co-subtotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
   document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : '₹' + shipping;
-  document.getElementById('co-total').textContent = '₹' + (subtotal + shipping).toLocaleString('en-IN');
+  document.getElementById('co-total').textContent = '₹' + total.toLocaleString('en-IN');
+  document.getElementById('shipping-policy-note').textContent = shippingPolicyText();
 });
 
 async function initiatePayment() {
@@ -167,9 +169,7 @@ async function initiatePayment() {
   btn.textContent = 'Redirecting to PhonePe...';
 
   const cart = getCart();
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const shipping = subtotal >= 999 ? 0 : 99;
-  const total = subtotal + shipping;
+  const { shipping, total } = calculateCartTotals(cart);
 
   const orderData = {
     customer: {

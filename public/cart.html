@@ -101,6 +101,7 @@
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
     await loadProducts();
+    await loadStoreConfig();
     syncCartWithProducts();
     renderCartPage();
   });

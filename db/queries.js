@@ -1,5 +1,6 @@
 // db/queries.js
 const { db, nowSql } = require('./connection');
+const { calculateShipping } = require('../services/shipping');
 
 // ==========================================
 // CATEGORY OPERATIONS
@@ -107,7 +108,7 @@ function createOrderFromCart(cart, customer, options = {}) {
   });
 
   const subtotal = validatedItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const shipping = subtotal >= 999 ? 0 : 99;
+  const shipping = calculateShipping(subtotal);
   const total = subtotal + shipping;
   const orderId = options.id || 'ORD' + Date.now() + Math.floor(Math.random() * 1000);
   

@@ -18,7 +18,7 @@ function hasPhonePeConfig() {
 }
 
 router.post('/initiate', asyncHandler(async (req, res) => {
-  const { customer, items, cart, shipping } = req.body;
+  const { customer, items, cart } = req.body;
   const orderItems = items || cart;
   if (!customer || !orderItems) throw new Error('Missing required order fields.');
   if (!hasPhonePeConfig()) {
@@ -26,7 +26,7 @@ router.post('/initiate', asyncHandler(async (req, res) => {
   }
 
   const merchantTransactionId = 'NIKA' + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase();
-  const order = createOrderFromCart(orderItems, customer, { id: merchantTransactionId, shipping: Number(shipping) });
+  const order = createOrderFromCart(orderItems, customer, { id: merchantTransactionId });
 
   const payload = {
     merchantId: PHONEPE_MERCHANT_ID,

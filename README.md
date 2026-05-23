@@ -154,10 +154,14 @@ with your actual email address.
 
 ## Shipping logic
 
-Free shipping is set at ₹999+ orders. To change this, edit `public/checkout.html`:
-```js
-const shipping = subtotal >= 999 ? 0 : 99;
+Shipping is calculated on the server from environment settings, so the cart, checkout, and order creation all use the same rule.
+
+```bash
+SHIPPING_FEE=99
+FREE_SHIPPING_MINIMUM=2000
 ```
+
+With the default values, orders below Rs. 2,000 charge Rs. 99 shipping and orders of Rs. 2,000 or more get free shipping.
 
 Update the package dimensions and weight in `routes/shiprocket.js` to match your actual packaging:
 ```js

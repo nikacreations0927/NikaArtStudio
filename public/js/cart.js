@@ -5,6 +5,7 @@
 // ==========================================
 let PRODUCTS = [];
 let CATEGORIES = [];
+let STORE_CONFIG = null;
 
 async function loadProducts() {
   try {
@@ -28,6 +29,42 @@ async function loadCategories() {
     console.error("Failed to load categories:", err);
     CATEGORIES = [];
   }
+}
+
+async function loadStoreConfig() {
+  if (STORE_CONFIG) return STORE_CONFIG;
+  try {
+    const res = await fetch('/api/config/store');
+    const data = await res.json();
+    if (data.success) {
+      STORE_CONFIG = data.config;
+    }
+  } catch (err) {
+    console.error("Failed to load store config:", err);
+  }
+  return STORE_CONFIG;
+}
+
+function getShippingConfig() {
+  return STORE_CONFIG?.shipping || { fee: 0, freeShippingMinimum: Number.POSITIVE_INFINITY };
+}
+
+function calculateCartTotals(cart) {
+  const subtotal = (cart || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+  const shippingConfig = getShippingConfig();
+  const shipping = subtotal >= shippingConfig.freeShippingMinimum ? 0 : shippingConfig.fee;
+  return {
+    subtotal,
+    shipping,
+    total: subtotal + shipping,
+    freeShippingMinimum: shippingConfig.freeShippingMinimum
+  };
+}
+
+function shippingPolicyText() {
+  const { fee, freeShippingMinimum } = getShippingConfig();
+  if (!Number.isFinite(freeShippingMinimum) || !fee) return 'Shipping is calculated securely at checkout.';
+  return `Free shipping on orders ${rupees(freeShippingMinimum)} and above. Orders below ${rupees(freeShippingMinimum)} have a ${rupees(fee)} shipping fee.`;
 }
 
 function rupees(value) {
@@ -225,8 +262,7 @@ function renderCartPage() {
     `;
   }).join('');
 
-  const shipping = subtotal >= 999 ? 0 : 99; 
-  const total = subtotal + shipping;
+  const { shipping, total } = calculateCartTotals(cart);
 
   main.innerHTML = `
     <div class="cart-items-section">
@@ -249,6 +285,7 @@ function renderCartPage() {
         <span>Shipping</span>
         <span style="font-weight: 500;">${shipping === 0 ? 'Free' : rupees(shipping)}</span>
       </div>
+      <p class="cart-note">${shippingPolicyText()}</p>
       <div class="summary-row summary-total">
         <span>Total</span>
         <span>${rupees(total)}</span>
