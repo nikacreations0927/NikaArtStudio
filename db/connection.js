@@ -15,6 +15,7 @@ db.exec('PRAGMA foreign_keys = ON');
 db.exec('PRAGMA journal_mode = WAL');
 
 const nowSql = "datetime('now')";
+const cloudinaryProductCsvPath = path.join(dataDir, 'keychain-cloudinary-products.csv');
 
 /**
  * Initializes the database tables if they do not exist.
@@ -170,6 +171,110 @@ function initSchema() {
 /**
  * Seeds initial products, categories, and site settings.
  */
+function parseCsvLine(line) {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"';
+      i += 1;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  cells.push(current);
+  return cells;
+}
+
+function slugifyProductId(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function loadCloudinaryProductsFromCsv() {
+  if (!fs.existsSync(cloudinaryProductCsvPath)) return [];
+
+  const lines = fs.readFileSync(cloudinaryProductCsvPath, 'utf8')
+    .split(/\r?\n/)
+    .filter(line => line.trim());
+
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map(header => header.trim().toLowerCase());
+  const indexOf = (name) => headers.indexOf(name.toLowerCase());
+  const indexes = {
+    name: indexOf('Name'),
+    category: indexOf('Category'),
+    price: indexOf('Price'),
+    stock: indexOf('Stock'),
+    image: indexOf('Image'),
+    description: indexOf('Description')
+  };
+
+  return lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line);
+    const name = String(cells[indexes.name] || '').trim();
+    if (!name) return null;
+    return {
+      id: `cloud-${slugifyProductId(name)}`,
+      name,
+      price: Number(cells[indexes.price] || 0),
+      category: String(cells[indexes.category] || 'Keychains').trim() || 'Keychains',
+      image: String(cells[indexes.image] || '').trim(),
+      description: String(cells[indexes.description] || '').trim(),
+      stock: Number(cells[indexes.stock] || 0)
+    };
+  }).filter(Boolean);
+}
+
+function seedProductRows(products, { replaceExisting = false } = {}) {
+  if (!products.length) return 0;
+
+  const insertProduct = replaceExisting
+    ? db.prepare(`INSERT OR REPLACE INTO products (id, name, price, category, image, description, stock, is_active, is_deleted, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ${nowSql})`)
+    : db.prepare(`INSERT OR IGNORE INTO products (id, name, price, category, image, description, stock) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+  const insertEvent = db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'SEED', ?, ?)`);
+  const insertCat = db.prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`);
+
+  let added = 0;
+  db.exec('BEGIN');
+  try {
+    for (const p of products) {
+      const result = insertProduct.run(p.id, p.name, p.price, p.category, p.image, p.description, p.stock);
+      if (result.changes > 0) {
+        insertEvent.run(p.id, p.stock, 'Seeded from catalog');
+        added += 1;
+      }
+      insertCat.run(p.category);
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return added;
+}
+
+function hasOnlyDefaultPlaceholderProducts() {
+  const row = db.prepare('SELECT COUNT(*) AS count, SUM(CASE WHEN id IN (?, ?, ?, ?, ?, ?) AND image = ? THEN 1 ELSE 0 END) AS placeholder_count FROM products')
+    .get('p001', 'p002', 'p003', 'p004', 'p005', 'p006', '');
+  return row.count === 6 && row.placeholder_count === 6;
+}
+
 function seedDatabase() {
   // 1. SEED CONTENT (This runs first. "INSERT OR IGNORE" ensures it doesn't overwrite if you already saved custom changes)
   try {
@@ -202,10 +307,27 @@ function seedDatabase() {
   }
 
   // 2. SEED PRODUCTS (If products exist, stop here!)
+  const cloudinaryProducts = loadCloudinaryProductsFromCsv();
   const row = db.prepare('SELECT COUNT(*) AS count FROM products').get();
-  if (row.count > 0) return;
+  const shouldSeedCloudinaryCatalog = cloudinaryProducts.length > 0 && (row.count === 0 || hasOnlyDefaultPlaceholderProducts());
 
-  const seedProducts = [
+  if (shouldSeedCloudinaryCatalog) {
+    try {
+      if (hasOnlyDefaultPlaceholderProducts()) {
+        db.prepare('DELETE FROM inventory_events WHERE product_id IN (?, ?, ?, ?, ?, ?)').run('p001', 'p002', 'p003', 'p004', 'p005', 'p006');
+        db.prepare('DELETE FROM products WHERE id IN (?, ?, ?, ?, ?, ?)').run('p001', 'p002', 'p003', 'p004', 'p005', 'p006');
+      }
+      const added = seedProductRows(cloudinaryProducts);
+      if (added > 0) console.log(`Seeded ${added} Cloudinary catalog products from CSV.`);
+    } catch (err) {
+      console.error('Failed to seed Cloudinary products:', err);
+    }
+  }
+
+  const productCount = db.prepare('SELECT COUNT(*) AS count FROM products').get();
+  if (productCount.count > 0) return;
+
+  const defaultProducts = [
     { id: 'p001', name: 'Lily', price: 449, category: 'Crochet', image: '', description: 'Handmade crochet lily.', stock: 10 },
     { id: 'p002', name: 'Sunflower', price: 549, category: 'Crochet', image: '', description: 'Handmade crochet sunflower.', stock: 10 },
     { id: 'p003', name: 'Rose', price: 349, category: 'Crochet', image: '', description: 'Handmade crochet rose.', stock: 10 },
@@ -214,25 +336,9 @@ function seedDatabase() {
     { id: 'p006', name: 'Bee Happy', price: 449, category: 'Keychains', image: '', description: 'Handmade Bee Happy keychain.', stock: 10 }
   ];
 
-  const insertProduct = db.prepare(`INSERT INTO products (id, name, price, category, image, description, stock) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-  const insertEvent = db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'SEED', ?, 'Initial stock')`);
-  const insertCat = db.prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`);
-
-  db.exec('BEGIN');
   try {
-    for (const p of seedProducts) {
-      insertProduct.run(p.id, p.name, p.price, p.category, p.image, p.description, p.stock);
-      insertEvent.run(p.id, p.stock);
-    }
-    
-    const categories = db.prepare(`SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND trim(category) != '' ORDER BY category ASC`).all();
-    for (const c of categories) {
-      insertCat.run(c.category);
-    }
-    
-    db.exec('COMMIT');
+    seedProductRows(defaultProducts);
   } catch (err) {
-    db.exec('ROLLBACK');
     console.error("Failed to seed database:", err);
   }
 }
