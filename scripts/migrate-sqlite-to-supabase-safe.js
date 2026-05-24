@@ -3,6 +3,7 @@ require('dotenv').config();
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const { Pool } = require('pg');
+const { numberFromEnv } = require('../utils/env');
 
 const sqlitePath = process.env.SQLITE_DB_PATH || path.join(__dirname, '..', 'data', 'store.sqlite');
 const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL;
@@ -15,7 +16,7 @@ const sqlite = new DatabaseSync(sqlitePath, { readOnly: true });
 const pool = new Pool({
   connectionString,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
-  max: Number(process.env.PG_POOL_MAX || 5),
+  max: numberFromEnv('PG_POOL_MAX', 5, { min: 1 }),
   connectionTimeoutMillis: 15000
 });
 

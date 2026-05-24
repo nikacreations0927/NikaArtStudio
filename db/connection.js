@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
+const { numberFromEnv } = require('../utils/env');
 
 const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL;
 
@@ -25,7 +26,7 @@ if (looksLikeSupabaseDirectUrl(connectionString) && process.env.ALLOW_SUPABASE_D
 const pool = new Pool({
   connectionString,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },
-  max: Number(process.env.PG_POOL_MAX || 5),
+  max: numberFromEnv('PG_POOL_MAX', 5, { min: 1 }),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
 });

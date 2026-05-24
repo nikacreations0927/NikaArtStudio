@@ -1,5 +1,7 @@
-const STANDARD_SHIPPING_FEE = Number(process.env.SHIPPING_FEE || 99);
-const FREE_SHIPPING_MINIMUM = Number(process.env.FREE_SHIPPING_MINIMUM || 2000);
+const { numberFromEnv } = require('../utils/env');
+
+const STANDARD_SHIPPING_FEE = numberFromEnv('SHIPPING_FEE', 99, { min: 0 });
+const FREE_SHIPPING_MINIMUM = numberFromEnv('FREE_SHIPPING_MINIMUM', 2000, { min: 0 });
 
 function calculateShipping(subtotal) {
   const amount = Number(subtotal || 0);

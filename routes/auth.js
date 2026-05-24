@@ -12,12 +12,13 @@ const {
 } = require('../middleware/customerAuth');
 const { ADMIN_SESSION_COOKIE, getSessionToken, hashToken, requireAdmin } = require('../middleware/adminAuth');
 const { hasEmailConfig, sendPasswordResetEmail } = require('../services/email');
+const { numberFromEnv } = require('../utils/env');
 
 const router = express.Router();
 
-const ADMIN_SESSION_HOURS = Number(process.env.ADMIN_SESSION_HOURS || 12);
-const CUSTOMER_SESSION_DAYS = Number(process.env.CUSTOMER_SESSION_DAYS || 30);
-const PASSWORD_RESET_MINUTES = Number(process.env.PASSWORD_RESET_MINUTES || 30);
+const ADMIN_SESSION_HOURS = numberFromEnv('ADMIN_SESSION_HOURS', 12, { min: 1 });
+const CUSTOMER_SESSION_DAYS = numberFromEnv('CUSTOMER_SESSION_DAYS', 30, { min: 1 });
+const PASSWORD_RESET_MINUTES = numberFromEnv('PASSWORD_RESET_MINUTES', 30, { min: 1 });
 
 const nextCustomerId = () => 'CUST' + Date.now() + Math.floor(Math.random() * 1000);
 const sessionCookieOptions = () => ({
