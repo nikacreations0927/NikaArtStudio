@@ -9,6 +9,19 @@ if (!connectionString) {
   throw new Error('Postgres connection string missing. Add DATABASE_URL from Supabase to your environment variables.');
 }
 
+function looksLikeSupabaseDirectUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.hostname.startsWith('db.') && url.hostname.endsWith('.supabase.co') && url.port === '5432';
+  } catch {
+    return false;
+  }
+}
+
+if (looksLikeSupabaseDirectUrl(connectionString) && process.env.ALLOW_SUPABASE_DIRECT_URL !== 'true') {
+  throw new Error('DATABASE_URL is using the Supabase direct database host, which is IPv6-only on many free projects. Use the Supabase Session pooler connection string in Render instead.');
+}
+
 const pool = new Pool({
   connectionString,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false },

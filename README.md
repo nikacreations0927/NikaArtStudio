@@ -202,7 +202,7 @@ This project now uses Supabase Postgres for cloud-hosted data. It stores:
 Required database connection:
 
 ```bash
-DATABASE_URL=postgresql://postgres.your-project-ref:your-password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.your-project-ref:your-password@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
 PGSSLMODE=require
 PG_POOL_MAX=5
 ```
