@@ -8,6 +8,8 @@
     "dev": "nodemon --exec \"node --no-warnings\" server.js",
     "upload:keychains": "node scripts/upload-keychain-images.js",
     "upload:site-assets": "node scripts/upload-site-assets.js",
+    "db:migrate:sqlite": "node --no-warnings scripts/migrate-sqlite-to-postgres.js",
+    "test:e2e:smoke": "node --no-warnings scripts/smoke-e2e.js",
     "admin:seed": "node scripts/seed-admin-user.js"
   },
   "dependencies": {
@@ -18,7 +20,8 @@
     "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^8.0.7"
+    "nodemailer": "^8.0.7",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

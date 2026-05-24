@@ -1,15 +1,12 @@
-// routes/products.js
 const express = require('express');
 const crypto = require('crypto');
-const { db, createCategory, getCategoryByName, getProduct, getProducts } = require('../db');
+const { db, createCategory, getCategoryByName, getProduct, getProducts, nowSql } = require('../db');
 const { isAuthorized, requireAdmin } = require('../middleware/adminAuth');
 const asyncHandler = require('../middleware/asyncHandler');
 const { deleteProductImage, hasCloudinaryConfig, uploadProductImage } = require('../services/storage');
 
 const router = express.Router();
-const nowSql = "datetime('now')";
 
-// --- Helper Functions ---
 function cleanText(value, fallback = '') {
   if (value === undefined || value === null) return fallback;
   return String(value).trim();
@@ -41,20 +38,20 @@ function nextProductId() {
   return 'p' + crypto.randomBytes(5).toString('hex');
 }
 
-function ensureCategory(name) {
+async function ensureCategory(name) {
   if (!name) return null;
-  const existing = getCategoryByName(name);
+  const existing = await getCategoryByName(name);
   if (existing) return existing;
   return createCategory(name);
 }
 
 async function permanentlyRemoveProduct(productId) {
-  const existing = getProduct(productId);
+  const existing = await getProduct(productId);
   if (!existing) return { status: 404, body: { success: false, message: 'Product not found.' } };
 
-  const orderUsage = db.prepare('SELECT COUNT(*) AS count FROM order_items WHERE product_id = ?').get(productId);
+  const orderUsage = await db.get('SELECT COUNT(*)::int AS count FROM order_items WHERE product_id = ?', [productId]);
   if (orderUsage.count > 0) {
-    db.prepare(`UPDATE products SET is_active = 0, is_deleted = 1, updated_at = ${nowSql} WHERE id = ?`).run(productId);
+    await db.run(`UPDATE products SET is_active = 0, is_deleted = 1, updated_at = ${nowSql} WHERE id = ?`, [productId]);
     return {
       status: 200,
       body: {
@@ -67,18 +64,13 @@ async function permanentlyRemoveProduct(productId) {
   }
 
   const imageUsage = existing.image
-    ? db.prepare('SELECT COUNT(*) AS count FROM products WHERE image = ? AND id != ?').get(existing.image, productId)
+    ? await db.get('SELECT COUNT(*)::int AS count FROM products WHERE image = ? AND id != ?', [existing.image, productId])
     : { count: 0 };
 
-  db.exec('BEGIN');
-  try {
-    db.prepare('DELETE FROM inventory_events WHERE product_id = ?').run(productId);
-    db.prepare('DELETE FROM products WHERE id = ?').run(productId);
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  await db.transaction(async (tx) => {
+    await tx.run('DELETE FROM inventory_events WHERE product_id = ?', [productId]);
+    await tx.run('DELETE FROM products WHERE id = ?', [productId]);
+  });
 
   let imageCleanup = { provider: 'shared', deleted: false };
   if (imageUsage.count === 0) {
@@ -92,8 +84,6 @@ async function permanentlyRemoveProduct(productId) {
   return { status: 200, body: { success: true, message: 'Product permanently removed.', imageCleanup } };
 }
 
-// --- API Routes ---
-
 router.get('/storage/status', requireAdmin, asyncHandler(async (req, res) => {
   res.json({
     success: true,
@@ -105,14 +95,14 @@ router.get('/storage/status', requireAdmin, asyncHandler(async (req, res) => {
 
 router.get('/', asyncHandler(async (req, res) => {
   const includeInactive = req.query.includeInactive === 'true';
-  if (includeInactive && !isAuthorized(req)) {
+  if (includeInactive && !(await isAuthorized(req))) {
     return res.status(401).json({ success: false, message: 'Admin login required.' });
   }
-  res.json({ success: true, products: getProducts({ includeInactive }) });
+  res.json({ success: true, products: await getProducts({ includeInactive }) });
 }));
 
 router.get('/:id', asyncHandler(async (req, res) => {
-  const product = getProduct(req.params.id);
+  const product = await getProduct(req.params.id);
   if (!product) return res.status(404).json({ success: false, message: 'Product not found.' });
   res.json({ success: true, product });
 }));
@@ -120,23 +110,21 @@ router.get('/:id', asyncHandler(async (req, res) => {
 router.post('/', requireAdmin, asyncHandler(async (req, res) => {
   const product = cleanProductPayload(req.body);
   const id = product.id || nextProductId();
-  ensureCategory(product.category);
+  await ensureCategory(product.category);
 
-  db.exec('BEGIN');
-  try {
-    db.prepare(`INSERT INTO products (id, name, price, category, image, description, stock, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, product.name, product.price, product.category, product.image, product.description, product.stock, product.isActive ? 1 : 0);
-    db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'CREATE_PRODUCT', ?, 'Initial product stock')`).run(id, product.stock);
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  await db.transaction(async (tx) => {
+    await tx.run(`
+      INSERT INTO products (id, name, price, category, image, description, stock, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, product.name, product.price, product.category, product.image, product.description, product.stock, product.isActive ? 1 : 0]);
+    await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'CREATE_PRODUCT', ?, 'Initial product stock')`, [id, product.stock]);
+  });
 
-  res.status(201).json({ success: true, product: getProduct(id) });
+  res.status(201).json({ success: true, product: await getProduct(id) });
 }));
 
 router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
-  const existing = getProduct(req.params.id);
+  const existing = await getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
   const product = cleanProductPayload(req.body, { partial: true });
@@ -149,27 +137,26 @@ router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
     stock: Number.isInteger(product.stock) && product.stock >= 0 ? product.stock : existing.stock,
     isActive: req.body.isActive === undefined ? existing.isActive : product.isActive
   };
-  ensureCategory(next.category);
+  await ensureCategory(next.category);
 
-  db.exec('BEGIN');
-  try {
-    db.prepare(`UPDATE products SET name = ?, price = ?, category = ?, image = ?, description = ?, stock = ?, is_active = ?, updated_at = ${nowSql} WHERE id = ?`).run(next.name, next.price, next.category, next.image, next.description, next.stock, next.isActive ? 1 : 0, req.params.id);
+  await db.transaction(async (tx) => {
+    await tx.run(`
+      UPDATE products
+      SET name = ?, price = ?, category = ?, image = ?, description = ?, stock = ?, is_active = ?, updated_at = ${nowSql}
+      WHERE id = ?
+    `, [next.name, next.price, next.category, next.image, next.description, next.stock, next.isActive ? 1 : 0, req.params.id]);
 
     const stockDelta = next.stock - existing.stock;
     if (stockDelta !== 0) {
-      db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'MANUAL_STOCK_UPDATE', ?, 'Stock updated through product API')`).run(req.params.id, stockDelta);
+      await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'MANUAL_STOCK_UPDATE', ?, 'Stock updated through product API')`, [req.params.id, stockDelta]);
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 
-  res.json({ success: true, product: getProduct(req.params.id) });
+  res.json({ success: true, product: await getProduct(req.params.id) });
 }));
 
 router.patch('/:id/stock', requireAdmin, asyncHandler(async (req, res) => {
-  const existing = getProduct(req.params.id);
+  const existing = await getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
   const mode = cleanText(req.body.mode, 'set');
@@ -181,23 +168,18 @@ router.patch('/:id/stock', requireAdmin, asyncHandler(async (req, res) => {
   if (nextStock < 0) throw new Error('Stock cannot be negative.');
   const delta = nextStock - existing.stock;
 
-  db.exec('BEGIN');
-  try {
-    db.prepare(`UPDATE products SET stock = ?, updated_at = ${nowSql} WHERE id = ?`).run(nextStock, req.params.id);
+  await db.transaction(async (tx) => {
+    await tx.run(`UPDATE products SET stock = ?, updated_at = ${nowSql} WHERE id = ?`, [nextStock, req.params.id]);
     if (delta !== 0) {
-      db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'MANUAL_STOCK_UPDATE', ?, ?)`).run(req.params.id, delta, note);
+      await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'MANUAL_STOCK_UPDATE', ?, ?)`, [req.params.id, delta, note]);
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 
-  res.json({ success: true, product: getProduct(req.params.id) });
+  res.json({ success: true, product: await getProduct(req.params.id) });
 }));
 
 router.post('/:id/image', requireAdmin, asyncHandler(async (req, res) => {
-  const existing = getProduct(req.params.id);
+  const existing = await getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
   const uploaded = await uploadProductImage({
@@ -205,9 +187,9 @@ router.post('/:id/image', requireAdmin, asyncHandler(async (req, res) => {
     productName: existing.name,
     productId: req.params.id
   });
-  db.prepare(`UPDATE products SET image = ?, updated_at = ${nowSql} WHERE id = ?`).run(uploaded.url, req.params.id);
+  await db.run(`UPDATE products SET image = ?, updated_at = ${nowSql} WHERE id = ?`, [uploaded.url, req.params.id]);
 
-  res.json({ success: true, image: uploaded.url, storage: uploaded, product: getProduct(req.params.id) });
+  res.json({ success: true, image: uploaded.url, storage: uploaded, product: await getProduct(req.params.id) });
 }));
 
 router.post('/images/bulk', requireAdmin, asyncHandler(async (req, res) => {
@@ -244,11 +226,11 @@ router.delete('/permanent/:id', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 router.delete('/:id', requireAdmin, asyncHandler(async (req, res) => {
-  const existing = getProduct(req.params.id);
+  const existing = await getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
-  db.prepare(`UPDATE products SET is_active = 0, updated_at = ${nowSql} WHERE id = ?`).run(req.params.id);
-  res.json({ success: true, product: getProduct(req.params.id) });
+  await db.run(`UPDATE products SET is_active = 0, updated_at = ${nowSql} WHERE id = ?`, [req.params.id]);
+  res.json({ success: true, product: await getProduct(req.params.id) });
 }));
 
 router.delete('/:id/permanent', requireAdmin, asyncHandler(async (req, res) => {
@@ -257,14 +239,13 @@ router.delete('/:id/permanent', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id/inventory-events', requireAdmin, asyncHandler(async (req, res) => {
-  const existing = getProduct(req.params.id);
+  const existing = await getProduct(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Product not found.' });
 
-  const events = db.prepare(`SELECT * FROM inventory_events WHERE product_id = ? ORDER BY created_at DESC, id DESC`).all(req.params.id);
+  const events = await db.all('SELECT * FROM inventory_events WHERE product_id = ? ORDER BY created_at DESC, id DESC', [req.params.id]);
   res.json({ success: true, events });
 }));
 
-// --- Bulk Operations ---
 router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
   const { products } = req.body;
   if (!Array.isArray(products) || products.length === 0) {
@@ -272,37 +253,30 @@ router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
   }
 
   let addedCount = 0;
-  
-  db.exec('BEGIN');
-  try {
+
+  await db.transaction(async (tx) => {
     for (const p of products) {
-      // Basic validation
-      if (!p.name || !p.category) continue; 
-      
+      if (!p.name || !p.category) continue;
+
       const id = nextProductId();
       const price = Number.isInteger(Number(p.price)) ? Number(p.price) : 0;
       const stock = Number.isInteger(Number(p.stock)) ? Number(p.stock) : 0;
-      
-      // Ensure the category exists in the DB
-      const existingCategory = db.prepare('SELECT * FROM categories WHERE lower(name) = lower(?)').get(p.category);
+      const category = String(p.category || '').trim();
+
+      const existingCategory = await tx.get('SELECT * FROM categories WHERE lower(name) = lower(?)', [category]);
       if (!existingCategory) {
-        db.prepare(`INSERT INTO categories (name) VALUES (?)`).run(p.category.trim());
+        await tx.run('INSERT INTO categories (name) VALUES (?)', [category]);
       }
 
-      // Insert the product
-      db.prepare(`
-        INSERT INTO products (id, name, price, category, image, description, stock, is_active) 
+      await tx.run(`
+        INSERT INTO products (id, name, price, category, image, description, stock, is_active)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-      `).run(id, p.name.trim(), price, p.category.trim(), String(p.image || '').trim(), String(p.description || '').trim(), stock);
-      
-      db.prepare(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'BULK_CREATE', ?, 'Bulk CSV Upload')`).run(id, stock);
+      `, [id, p.name.trim(), price, category, String(p.image || '').trim(), String(p.description || '').trim(), stock]);
+
+      await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'BULK_CREATE', ?, 'Bulk CSV Upload')`, [id, stock]);
       addedCount++;
     }
-    db.exec('COMMIT');
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+  });
 
   res.status(201).json({ success: true, message: `Successfully added ${addedCount} products.` });
 }));

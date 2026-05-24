@@ -26,7 +26,7 @@ router.post('/initiate', asyncHandler(async (req, res) => {
   }
 
   const merchantTransactionId = 'NIKA' + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase();
-  const order = createOrderFromCart(orderItems, customer, { id: merchantTransactionId });
+  const order = await createOrderFromCart(orderItems, customer, { id: merchantTransactionId });
 
   const payload = {
     merchantId: PHONEPE_MERCHANT_ID,
@@ -72,16 +72,18 @@ router.post('/callback', asyncHandler(async (req, res) => {
   const { merchantTransactionId, transactionId, code } = decoded.data || decoded;
   const success = code === 'PAYMENT_SUCCESS';
 
-  const order = getOrder(merchantTransactionId);
+  const order = await getOrder(merchantTransactionId);
   if (!order) return res.status(404).send('Order not found');
 
   if (success) {
-    markOrderPaid(merchantTransactionId, transactionId, decoded);
+    await markOrderPaid(merchantTransactionId, transactionId, decoded);
     // Trigger Shiprocket asynchronously (we don't await this so the callback can return quickly)
     const shiprocketModule = require('./shiprocket');
-    shiprocketModule.createOrderFromPayment(getOrder(merchantTransactionId)).catch(err => console.error('Shiprocket order creation failed:', err.message));
+    getOrder(merchantTransactionId)
+      .then(createdOrder => shiprocketModule.createOrderFromPayment(createdOrder))
+      .catch(err => console.error('Shiprocket order creation failed:', err.message));
   } else {
-    recordPayment({ orderId: merchantTransactionId, status: code || 'PAYMENT_FAILED', providerTransactionId: transactionId, raw: decoded });
+    await recordPayment({ orderId: merchantTransactionId, status: code || 'PAYMENT_FAILED', providerTransactionId: transactionId, raw: decoded });
   }
 
   res.status(200).send('OK');
@@ -89,7 +91,7 @@ router.post('/callback', asyncHandler(async (req, res) => {
 
 router.get('/status/:txnId', asyncHandler(async (req, res) => {
   const { txnId } = req.params;
-  const existingOrder = getOrder(txnId);
+  const existingOrder = await getOrder(txnId);
   if (existingOrder && ['PAID', 'PAYMENT_SUCCESS'].includes(existingOrder.paymentStatus)) {
     return res.json({ success: true, status: 'PAYMENT_SUCCESS', order: existingOrder, raw: { cached: true } });
   }
@@ -109,15 +111,17 @@ router.get('/status/:txnId', asyncHandler(async (req, res) => {
 
   if (existingOrder) {
     if (status === 'PAYMENT_SUCCESS') {
-      markOrderPaid(txnId, providerTransactionId, data);
+      await markOrderPaid(txnId, providerTransactionId, data);
       const shiprocketModule = require('./shiprocket');
-      shiprocketModule.createOrderFromPayment(getOrder(txnId)).catch(err => console.error('Shiprocket order creation failed:', err.message));
+      getOrder(txnId)
+        .then(createdOrder => shiprocketModule.createOrderFromPayment(createdOrder))
+        .catch(err => console.error('Shiprocket order creation failed:', err.message));
     } else {
-      recordPayment({ orderId: txnId, status, providerTransactionId, raw: data });
+      await recordPayment({ orderId: txnId, status, providerTransactionId, raw: data });
     }
   }
 
-  return res.json({ success: data.success, status, order: getOrder(txnId), raw: data.data });
+  return res.json({ success: data.success, status, order: await getOrder(txnId), raw: data.data });
 }));
 
 module.exports = router;

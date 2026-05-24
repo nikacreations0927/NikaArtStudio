@@ -28,12 +28,12 @@ function getCustomerSessionToken(req) {
   return cookies[CUSTOMER_SESSION_COOKIE] || '';
 }
 
-function getCustomerFromSession(req) {
+async function getCustomerFromSession(req) {
   const token = getCustomerSessionToken(req);
   if (!token) return null;
 
   const tokenHash = hashToken(token);
-  const session = db.prepare(`
+  const session = await db.get(`
     SELECT
       s.token_hash,
       s.expires_at,
@@ -47,11 +47,11 @@ function getCustomerFromSession(req) {
     WHERE s.token_hash = ?
       AND s.revoked_at IS NULL
       AND s.expires_at > ?
-  `).get(tokenHash, Date.now());
+  `, [tokenHash, Date.now()]);
 
   if (!session) return null;
 
-  db.prepare("UPDATE customer_sessions SET last_seen_at = datetime('now') WHERE token_hash = ?").run(tokenHash);
+  await db.run('UPDATE customer_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE token_hash = ?', [tokenHash]);
   return {
     id: session.id,
     firstName: session.first_name,
@@ -63,19 +63,27 @@ function getCustomerFromSession(req) {
   };
 }
 
-function optionalCustomer(req, res, next) {
-  req.customer = getCustomerFromSession(req);
-  next();
+async function optionalCustomer(req, res, next) {
+  try {
+    req.customer = await getCustomerFromSession(req);
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
-function requireCustomer(req, res, next) {
-  const customer = getCustomerFromSession(req);
-  if (!customer) {
-    return res.status(401).json({ success: false, message: 'Please log in.' });
-  }
+async function requireCustomer(req, res, next) {
+  try {
+    const customer = await getCustomerFromSession(req);
+    if (!customer) {
+      return res.status(401).json({ success: false, message: 'Please log in.' });
+    }
 
-  req.customer = customer;
-  next();
+    req.customer = customer;
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 module.exports = {

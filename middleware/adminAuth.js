@@ -28,12 +28,12 @@ function getSessionToken(req) {
   return cookies[ADMIN_SESSION_COOKIE] || '';
 }
 
-function getAdminFromSession(req) {
+async function getAdminFromSession(req) {
   const token = getSessionToken(req);
   if (!token) return null;
 
   const tokenHash = hashToken(token);
-  const session = db.prepare(`
+  const session = await db.get(`
     SELECT
       s.token_hash,
       s.expires_at,
@@ -48,11 +48,11 @@ function getAdminFromSession(req) {
       AND s.revoked_at IS NULL
       AND s.expires_at > ?
       AND u.is_active = 1
-  `).get(tokenHash, Date.now());
+  `, [tokenHash, Date.now()]);
 
   if (!session) return null;
 
-  db.prepare("UPDATE admin_sessions SET last_seen_at = datetime('now') WHERE token_hash = ?").run(tokenHash);
+  await db.run('UPDATE admin_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE token_hash = ?', [tokenHash]);
   return {
     id: session.id,
     username: session.username,
@@ -63,23 +63,27 @@ function getAdminFromSession(req) {
   };
 }
 
-function isAuthorized(req) {
+async function isAuthorized(req) {
   const apiKey = process.env.ADMIN_API_KEY;
   if (apiKey && req.headers['x-admin-key'] === apiKey) {
     req.admin = { id: 'api-key', username: 'api-key', role: 'automation' };
     return true;
   }
 
-  const admin = getAdminFromSession(req);
+  const admin = await getAdminFromSession(req);
   if (!admin) return false;
 
   req.admin = admin;
   return true;
 }
 
-function requireAdmin(req, res, next) {
-  if (isAuthorized(req)) return next();
-  return res.status(401).json({ success: false, message: 'Admin login required.' });
+async function requireAdmin(req, res, next) {
+  try {
+    if (await isAuthorized(req)) return next();
+    return res.status(401).json({ success: false, message: 'Admin login required.' });
+  } catch (err) {
+    return next(err);
+  }
 }
 
 module.exports = {

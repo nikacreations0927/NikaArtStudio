@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { getSiteContent, updateSiteContent } = require('../db');
+const { getSiteContent, pool, ready, updateSiteContent } = require('../db');
 const { hasCloudinaryConfig, uploadSiteAsset } = require('../services/storage');
 
 const rootDir = path.join(__dirname, '..');
@@ -40,7 +40,9 @@ async function main() {
     throw new Error('Cloudinary credentials are missing in .env.');
   }
 
-  const currentContent = getSiteContent();
+  await ready;
+
+  const currentContent = await getSiteContent();
   const nextAssets = { ...(currentContent.assets || {}) };
 
   for (const asset of assetsToUpload) {
@@ -58,7 +60,7 @@ async function main() {
     console.log(`${asset.key}: ${uploaded.url}`);
   }
 
-  const updatedContent = updateSiteContent({
+  const updatedContent = await updateSiteContent({
     ...currentContent,
     assets: nextAssets
   });
@@ -69,5 +71,7 @@ async function main() {
 
 main().catch(error => {
   console.error(error.message);
-  process.exit(1);
+  process.exitCode = 1;
+}).finally(async () => {
+  await pool.end();
 });

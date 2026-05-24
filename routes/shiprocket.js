@@ -70,9 +70,9 @@ async function createOrderFromPayment(orderData) {
 
   const response = await axios.post(`${SHIPROCKET_BASE}/orders/create/adhoc`, payload, { headers: { Authorization: `Bearer ${token}` } });
 
-  db.prepare(`UPDATE orders SET logistics_status = 'CREATED', shiprocket_order_id = ?, shiprocket_shipment_id = ?, updated_at = datetime('now') WHERE id = ?`).run(String(response.data.order_id || ''), String(response.data.shipment_id || ''), merchantTransactionId);
+  await db.run(`UPDATE orders SET logistics_status = 'CREATED', shiprocket_order_id = ?, shiprocket_shipment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [String(response.data.order_id || ''), String(response.data.shipment_id || ''), merchantTransactionId]);
 
-  recordLogistics({ orderId: merchantTransactionId, status: 'CREATED', trackingId: response.data.awb_code || response.data.shipment_id || null, raw: response.data });
+  await recordLogistics({ orderId: merchantTransactionId, status: 'CREATED', trackingId: response.data.awb_code || response.data.shipment_id || null, raw: response.data });
   console.log('Shiprocket order created:', response.data.order_id);
   return response.data;
 }

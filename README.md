@@ -189,7 +189,7 @@ For Shiprocket issues: https://apidocs.shiprocket.in
 
 ## Database and admin dashboard
 
-This project now includes a free local SQLite database. It stores:
+This project now uses Supabase Postgres for cloud-hosted data. It stores:
 
 - products
 - stock levels
@@ -199,10 +199,12 @@ This project now includes a free local SQLite database. It stores:
 - sales inventory events
 - logistics events
 
-Default database file:
+Required database connection:
 
 ```bash
-SQLITE_DB_PATH=./data/store.sqlite
+DATABASE_URL=postgresql://postgres.your-project-ref:your-password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
+PGSSLMODE=require
+PG_POOL_MAX=5
 ```
 
 Admin page:
@@ -221,6 +223,14 @@ ADMIN_API_KEY=change-this-secret
 
 Use the admin page to add products, update product names/categories/prices/stock, hide products, view sales totals, and update fulfillment/logistics status.
 
+If you need to copy data from the old local SQLite file into Supabase once, set `DATABASE_URL` and run:
+
+```bash
+npm run db:migrate:sqlite
+```
+
+By default this reads `data/store.sqlite`. To migrate from another file, temporarily set `SQLITE_DB_PATH` before running the script.
+
 ### Adding categories
 
 Open:
@@ -229,7 +239,7 @@ Open:
 http://localhost:3000/admin.html
 ```
 
-Use **Add category** before adding products. New categories are stored in SQLite and appear:
+Use **Add category** before adding products. New categories are stored in Postgres and appear:
 
 - in the **Add product** category dropdown
 - in each existing product's category dropdown
@@ -257,11 +267,11 @@ The image is saved under:
 public/images/products/
 ```
 
-The product record is updated in SQLite automatically. To replace a photo later, upload a new file for the same product; the storefront will use the newest uploaded image path.
+The product record is updated in Postgres automatically. To replace a photo later, upload a new file for the same product; the storefront will use the newest uploaded image path.
 
 The storefront loads products from `/api/products`; products are no longer managed by editing the frontend JavaScript array.
 
-Important: the database integration uses Node's built-in SQLite support, so run this project on Node 24+.
+Important: the database integration uses the `pg` Postgres client, so `DATABASE_URL` must be configured locally and in Render before the server can start.
 
 ### Free cloud image storage
 
@@ -278,22 +288,16 @@ CLOUDINARY_API_SECRET=your_api_secret
 CLOUDINARY_PRODUCT_FOLDER=nika-arts/products
 ```
 
-After these are set, admin product image uploads are sent to Cloudinary and the product stores the Cloudinary CDN URL in SQLite. If the variables are missing, uploads fall back to `public/images/products/` for local development.
+After these are set, admin product image uploads are sent to Cloudinary and the product stores the Cloudinary CDN URL in Postgres. If the variables are missing, uploads fall back to `public/images/products/` for local development.
 
 The admin Inventory screen also includes a **Cloud Image Library** uploader where you can upload multiple JPEG, PNG, or WEBP files at once and copy the resulting cloud URLs.
 
 ### Opening the database directly
 
-SQLite is a file database, so it does not have its own database username/password login. Your admin username/password protects the backend/admin APIs. The database file itself is:
-
-```text
-data/store.sqlite
-```
+Open your Supabase project, then go to **Table Editor** for a friendly view or **SQL Editor** for queries. Your admin username/password protects the backend/admin APIs; Supabase project access controls who can open the raw database.
 
 Recommended free SQL tools:
 
-- DB Browser for SQLite
-- DBeaver Community Edition
-- SQLite Viewer / SQLite extension for VS Code
-
-In those tools, open the file at `data/store.sqlite`. If the server is running, you may also see `store.sqlite-wal` and `store.sqlite-shm`; those are normal SQLite write-ahead-log files.
+- Supabase Table Editor
+- Supabase SQL Editor
+- DBeaver Community Edition using the Supabase Postgres connection string

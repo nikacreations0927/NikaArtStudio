@@ -9,14 +9,14 @@ const router = express.Router();
 
 // GET: Publicly accessible route for your storefront to load the text
 router.get('/', asyncHandler(async (req, res) => {
-  const content = getSiteContent();
+  const content = await getSiteContent();
   res.json({ success: true, content });
 }));
 
 // PUT: Protected route for your Admin Dashboard to save new text
 router.put('/', requireAdmin, asyncHandler(async (req, res) => {
   if (!req.body.content) throw new Error("Content object is required");
-  const updatedContent = updateSiteContent(req.body.content);
+  const updatedContent = await updateSiteContent(req.body.content);
   res.json({ success: true, content: updatedContent });
 }));
 
@@ -33,8 +33,8 @@ router.post('/assets/:assetKey', requireAdmin, asyncHandler(async (req, res) => 
     assetName: assetKey.replace(/Image$/, '')
   });
 
-  const currentContent = getSiteContent();
-  const updatedContent = updateSiteContent({
+  const currentContent = await getSiteContent();
+  const updatedContent = await updateSiteContent({
     ...currentContent,
     assets: {
       ...(currentContent.assets || {}),
