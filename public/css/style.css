@@ -13,7 +13,7 @@
   --border:    #DDD9C8;
   --white:     #FFFFFF;
   --radius:    10px;
-  --header-h:  72px;
+  --header-h:  64px;
   --font-head: 'Playfair Display', Georgia, serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
 }
@@ -34,10 +34,11 @@ body {
 .site-header {
   position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 2rem;
+  padding: 0 2.5rem;
   height: var(--header-h);
-  background: var(--white);
-  border-bottom: 2px solid var(--terra);
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--terra);
+  backdrop-filter: blur(10px);
 }
 .logo {
   display: flex;
@@ -45,12 +46,12 @@ body {
   text-decoration: none;
 }
 .logo img {
-  height: 52px;
+  height: 46px;
   width: auto;
   object-fit: contain;
 }
 .logo-image {
-  max-height: 52px;
+  max-height: 46px;
   width: auto;
   object-fit: contain;
 }
@@ -95,12 +96,17 @@ body {
 /* ── HERO ── */
 .hero {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: 82vh;
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+  min-height: clamp(500px, 58vh, 620px);
   align-items: center;
+  gap: clamp(2rem, 4vw, 4.5rem);
+  padding: clamp(2rem, 5vw, 4rem) 5rem;
+  overflow: hidden;
 }
 .hero-content {
-  padding: 5rem 2rem 5rem 5rem;
+  padding: 0;
+  max-width: 520px;
+  min-width: 0;
 }
 .hero-eyebrow {
   font-size: 0.8rem;
@@ -121,7 +127,7 @@ body {
 .hero-sub {
   font-size: 1.05rem;
   color: var(--muted);
-  max-width: 400px;
+  max-width: min(100%, 400px);
   margin-bottom: 2rem;
   font-weight: 300;
 }
@@ -132,6 +138,23 @@ body {
   overflow: hidden;
 }
 .hero-image img { width: 100%; height: 100%; object-fit: cover; }
+.hero-media {
+  width: min(100%, 560px);
+  min-width: 0;
+  justify-self: end;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--cream-2);
+  box-shadow: 0 24px 60px rgba(26, 46, 26, 0.12);
+}
+.hero-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .hero-img-placeholder, .about-img-placeholder {
   width: 100%; height: 100%; min-height: 400px;
   background: var(--cream-2);
@@ -340,12 +363,16 @@ body {
 /* ── ABOUT ── */
 .about-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
+  grid-template-columns: minmax(0, 0.95fr) minmax(280px, 0.75fr);
+  gap: clamp(2rem, 5vw, 4rem);
   align-items: center;
   background: var(--cream-2);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+}
+.about-text {
+  max-width: 640px;
+  min-width: 0;
 }
 .about-text h2 {
   font-family: var(--font-head);
@@ -360,6 +387,23 @@ body {
 .about-img-placeholder {
   border-radius: var(--radius);
   border: 1px solid var(--border);
+}
+.about-image {
+  justify-self: center;
+  width: min(100%, 360px);
+  min-width: 0;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--white);
+  box-shadow: 0 18px 44px rgba(26, 46, 26, 0.1);
+}
+.about-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ── CONTACT ── */
@@ -1106,10 +1150,24 @@ body {
 
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
-  .hero { grid-template-columns: 1fr; }
-  .hero-content { padding: 3rem 1.5rem; }
+  .hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    gap: 2rem;
+    padding: 2.5rem 1.5rem;
+  }
+  .hero-content { padding: 0; }
   .hero-image { min-height: 300px; }
+  .hero-media {
+    width: 100%;
+    max-height: 420px;
+    justify-self: stretch;
+  }
   .about-section { grid-template-columns: 1fr; gap: 2rem; }
+  .about-image {
+    width: min(100%, 340px);
+    justify-self: start;
+  }
   .cart-section { grid-template-columns: 1fr; }
   .checkout-section { grid-template-columns: 1fr; }
   .checkout-summary-col { position: static; }
@@ -1130,6 +1188,20 @@ body {
   .site-header { padding: 0 1rem; }
 }
 @media (max-width: 600px) {
+  .site-header {
+    height: 58px;
+  }
+  .logo img,
+  .logo-image {
+    height: 40px;
+    max-height: 40px;
+  }
+  .hero {
+    padding: 2rem 1rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.15rem, 12vw, 3rem);
+  }
   .nav-links { display: none; }
   .product-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
   .order-card { grid-template-columns: 1fr; }
