@@ -96,7 +96,7 @@ function productCard(product) {
   const isOut = Number(product.stock || 0) <= 0;
   return `
     <div class="product-card reveal">
-      <a href="product.html?id=${encodeURIComponent(product.id)}" class="product-image-link" aria-label="View ${safeName}">
+      <a href="/product?id=${encodeURIComponent(product.id)}" class="product-image-link" aria-label="View ${safeName}">
         <img src="${safeImage}" alt="${safeName}" class="product-img" loading="lazy">
       </a>
       <div class="product-card-meta">
@@ -108,7 +108,7 @@ function productCard(product) {
       </div>
       ${safeDescription ? `<p class="product-card-desc">${safeDescription}</p>` : ''}
       <div class="product-card-actions">
-        <a class="btn-outline" href="product.html?id=${encodeURIComponent(product.id)}">View</a>
+        <a class="btn-outline" href="/product?id=${encodeURIComponent(product.id)}">View</a>
         <button class="btn-primary" ${isOut ? 'disabled' : ''} onclick="addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})">
           ${isOut ? 'Out of stock' : 'Add to cart'}
         </button>
@@ -230,7 +230,7 @@ function renderCartPage() {
         <h2>Your cart is empty</h2>
         <p>Looks like you haven't added any art to your cart yet.</p>
         <br>
-        <a href="products.html" class="btn-primary">Continue Shopping</a>
+        <a href="/shop" class="btn-primary">Continue Shopping</a>
       </div>
     `;
     return;
@@ -291,7 +291,7 @@ function renderCartPage() {
         <span>${rupees(total)}</span>
       </div>
 
-      <a href="checkout.html" class="btn-primary" style="width: 100%; margin-top: 1rem; text-align: center;" id="checkout-btn">
+      <a href="/checkout" class="btn-primary" style="width: 100%; margin-top: 1rem; text-align: center;" id="checkout-btn">
         Proceed to Secure Checkout
       </a>
 
@@ -330,7 +330,7 @@ function removeFromCart(id) {
 
 async function processCheckout(event) {
   event.preventDefault();
-  window.location.href = 'checkout.html';
+  window.location.href = '/checkout';
 }
 
 // ==========================================
@@ -411,5 +411,5 @@ function filterCategory(category, buttonElement) {
 // Global listener: runs on every single page load
 document.addEventListener('DOMContentLoaded', () => {
   updateCartCount(); // Keeps cart bubble accurate everywhere
-  initShopPage();    // Draws the shop grid if we are on products.html
+  initShopPage();    // Draws the shop grid if we are on /shop
 });

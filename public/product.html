@@ -10,13 +10,13 @@
 </head>
 <body>
 <header class="site-header">
-  <a href="index.html" class="logo">Nika Arts Studio</a>
+  <a href="/" class="logo">Nika Arts Studio</a>
   <nav class="nav-links">
-    <a href="products.html">Shop</a>
-    <a href="track.html">Track Order</a>
-    <a href="account.html">Account</a>
+    <a href="/shop">Shop</a>
+    <a href="/track-order">Track Order</a>
+    <a href="/account">Account</a>
   </nav>
-  <a href="cart.html" class="cart-icon" aria-label="View cart">
+  <a href="/cart" class="cart-icon" aria-label="View cart">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
     <span class="cart-count" id="cart-count">0</span>
   </a>
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const detail = document.getElementById('product-detail');
 
   if (!id) {
-    detail.innerHTML = '<div class="empty-cart-msg"><h2>Product not found</h2><a class="btn-primary" href="products.html">Back to shop</a></div>';
+    detail.innerHTML = '<div class="empty-cart-msg"><h2>Product not found</h2><a class="btn-primary" href="/shop">Back to shop</a></div>';
     return;
   }
 
@@ -68,12 +68,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           <button class="btn-primary" ${isOut ? 'disabled' : ''} onclick="addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})">
             ${isOut ? 'Out of stock' : 'Add to cart'}
           </button>
-          <a class="btn-outline" href="products.html">Back to collection</a>
+          <a class="btn-outline" href="/shop">Back to collection</a>
         </div>
       </div>
     `;
   } catch (err) {
-    detail.innerHTML = `<div class="empty-cart-msg"><h2>Product unavailable</h2><p>${escapeHtml(err.message)}</p><a class="btn-primary" href="products.html">Back to shop</a></div>`;
+    detail.innerHTML = `<div class="empty-cart-msg"><h2>Product unavailable</h2><p>${escapeHtml(err.message)}</p><a class="btn-primary" href="/shop">Back to shop</a></div>`;
   }
 });
 </script>

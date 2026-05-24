@@ -87,8 +87,8 @@ async function createCustomerSession(res, req, customer) {
 }
 
 function resetUrlForRequest(req, token) {
-  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-  return `${baseUrl}/account.html?resetToken=${encodeURIComponent(token)}`;
+  const baseUrl = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  return `${baseUrl}/account?resetToken=${encodeURIComponent(token)}`;
 }
 
 router.post('/admin/login', asyncHandler(async (req, res) => {

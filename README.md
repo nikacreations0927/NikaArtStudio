@@ -210,8 +210,22 @@ PG_POOL_MAX=5
 Admin page:
 
 ```text
-http://localhost:3000/admin.html
+http://localhost:3000/admin
 ```
+
+Customer-friendly page URLs:
+
+```text
+http://localhost:3000/
+http://localhost:3000/shop
+http://localhost:3000/product?id=PRODUCT_ID
+http://localhost:3000/cart
+http://localhost:3000/checkout
+http://localhost:3000/track-order
+http://localhost:3000/account
+```
+
+Legacy `.html` URLs redirect to these clean routes.
 
 Set this in `.env` to protect admin product/order APIs:
 
@@ -236,7 +250,7 @@ By default this reads `data/store.sqlite`. To migrate from another file, tempora
 Open:
 
 ```text
-http://localhost:3000/admin.html
+http://localhost:3000/admin
 ```
 
 Use **Add category** before adding products. New categories are stored in Postgres and appear:
@@ -252,7 +266,7 @@ The shop page shows all active categories, including newly added categories.
 Open:
 
 ```text
-http://localhost:3000/admin.html
+http://localhost:3000/admin
 ```
 
 For each product row:

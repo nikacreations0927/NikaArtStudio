@@ -11,6 +11,7 @@ const { PHONEPE_MERCHANT_ID, PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX, PHONEPE_ENV, 
 const PHONEPE_BASE = PHONEPE_ENV === 'production'
   ? 'https://api.phonepe.com/apis/hermes'
   : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+const SITE_BASE_URL = String(BASE_URL || '').replace(/\/$/, '');
 
 function hasPhonePeConfig() {
   return [PHONEPE_MERCHANT_ID, PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX, BASE_URL]
@@ -33,9 +34,9 @@ router.post('/initiate', asyncHandler(async (req, res) => {
     merchantTransactionId,
     merchantUserId: 'NIKA_USER_' + (customer.phone || customer.mobile || 'guest'),
     amount: Math.round(order.total * 100),
-    redirectUrl: `${BASE_URL}/success.html?transactionId=${merchantTransactionId}`,
+    redirectUrl: `${SITE_BASE_URL}/success?transactionId=${merchantTransactionId}`,
     redirectMode: 'REDIRECT',
-    callbackUrl: `${BASE_URL}/api/payment/callback`,
+    callbackUrl: `${SITE_BASE_URL}/api/payment/callback`,
     mobileNumber: customer.phone || customer.mobile,
     paymentInstrument: { type: 'PAY_PAGE' }
   };
