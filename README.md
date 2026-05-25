@@ -2,6 +2,12 @@
 
 Full-stack e-commerce website with PhonePe/UPI payments and Shiprocket logistics.
 
+## Admin and End-User Documentation
+
+For business/admin operating instructions, architecture notes, product upload workflows, privileges, completed work, and pending production items, see:
+
+[ADMIN_USER_GUIDE.md](ADMIN_USER_GUIDE.md)
+
 ---
 
 ## What's included
