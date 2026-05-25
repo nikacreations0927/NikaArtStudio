@@ -1,323 +1,430 @@
-# Nika Arts Studio — E-commerce Website
+# Nika Arts Studio E-Commerce Website
 
-Full-stack e-commerce website with PhonePe/UPI payments and Shiprocket logistics.
+Nika Arts Studio is a full-stack e-commerce website for selling handcrafted products online. The current production flow uses GitHub for code, Render for hosting, Supabase Postgres for database storage, Cloudinary for images, PhonePe for payments, and Shiprocket for shipping/logistics.
 
-## Admin and End-User Documentation
-
-For business/admin operating instructions, architecture notes, product upload workflows, privileges, completed work, and pending production items, see:
+For business-admin operating instructions, product upload workflows, admin privileges, troubleshooting, and pending production tasks, read:
 
 [ADMIN_USER_GUIDE.md](ADMIN_USER_GUIDE.md)
 
----
+## Current Production Architecture
 
-## What's included
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | HTML, CSS, vanilla JavaScript | Customer storefront and admin UI |
+| Backend | Node.js, Express | APIs, auth, products, orders, payments, logistics |
+| Database | Supabase Postgres | Products, categories, orders, customers, sessions, settings |
+| Image storage | Cloudinary | Product images, logo image, artist image |
+| Hosting | Render Web Service | Runs the Node/Express app |
+| Source control | GitHub | Stores code and triggers Render deploys |
+| Domain | GoDaddy DNS + Render custom domain | Public website URL |
+| Payments | PhonePe | Payment initiation, callbacks, payment status |
+| Shipping | Shiprocket | Serviceability, order creation, tracking integration |
+| Email | Nodemailer/Gmail app password | Customer password reset emails |
+
+## Main URLs
+
+Production customer URLs:
+
+```text
+https://nikaartscreations.com/
+https://nikaartscreations.com/shop
+https://nikaartscreations.com/product?id=PRODUCT_ID
+https://nikaartscreations.com/cart
+https://nikaartscreations.com/checkout
+https://nikaartscreations.com/success
+https://nikaartscreations.com/track-order
+https://nikaartscreations.com/account
+```
+
+Admin URL:
+
+```text
+https://nikaartscreations.com/admin
+```
+
+Legacy `.html` URLs redirect to clean URLs. For example, `/products.html` redirects to `/shop`.
+
+## Feature Status
 
 | Feature | Status |
 |---|---|
-| Homepage with hero + featured products | ✅ |
-| Product listing page with category filter | ✅ |
-| Shopping cart (add, remove, update qty) | ✅ |
-| Checkout form with address validation | ✅ |
-| PhonePe / UPI payment integration | ✅ |
-| Shiprocket order creation on payment success | ✅ |
-| Shiprocket serviceability check API | ✅ |
-| Order confirmation page | ✅ |
-| Mobile responsive design | ✅ |
+| Homepage with Cloudinary logo/hero image | Done |
+| Shop page with categories | Done |
+| Product detail page | Done |
+| Cart | Done |
+| Checkout | Done |
+| Dynamic shipping rule | Done |
+| Customer register/login/logout | Done |
+| Customer password change | Done |
+| Customer forgot/reset password | Done |
+| Order tracking | Done |
+| Admin login/logout | Done |
+| Admin password change | Done |
+| Admin dashboard and sales summary | Done |
+| Admin inventory manager | Done |
+| Product add/edit/hide/remove | Done |
+| Product CSV bulk upload | Done |
+| Product CSV export | Done |
+| Order CSV export | Done |
+| Cloudinary product image upload | Done |
+| Cloudinary logo/artist image upload | Done |
+| Supabase Postgres migration | Done |
+| Render deployment | Done |
+| Custom domain setup | In progress / DNS dependent |
+| PhonePe production verification | Pending business onboarding |
+| Shiprocket live order verification | Pending live credentials and pickup setup |
 
----
+## Project Structure
 
-## Project structure
-
-```
+```text
 nika-arts-studio/
-├── public/                  ← Frontend (HTML/CSS/JS)
-│   ├── index.html           ← Homepage
-│   ├── products.html        ← Shop / product listing
-│   ├── cart.html            ← Cart page
-│   ├── checkout.html        ← Checkout + payment
-│   ├── success.html         ← Order confirmation
-│   ├── css/style.css        ← All styles
-│   ├── js/cart.js           ← Cart logic + PRODUCTS data
-│   └── images/              ← Put your product photos here
-├── routes/
-│   ├── payment.js           ← PhonePe payment gateway
-│   ├── shiprocket.js        ← Shiprocket logistics
-│   └── orders.js            ← Order management
-├── server.js                ← Express server (entry point)
-├── package.json
-├── .env.example             ← Copy to .env and fill in keys
-└── README.md
+|-- public/
+|   |-- index.html              # Homepage
+|   |-- products.html           # Shop page, served as /shop
+|   |-- product.html            # Product detail page
+|   |-- cart.html               # Cart
+|   |-- checkout.html           # Checkout
+|   |-- success.html            # Payment/order success page
+|   |-- track.html              # Order tracking, served as /track-order
+|   |-- account.html            # Customer account page
+|   |-- admin.html              # Admin shell
+|   |-- admin-panels/           # Admin dashboard, inventory, CMS, settings
+|   |-- css/style.css           # Shared styling
+|   |-- js/cart.js              # Customer storefront/cart logic
+|   |-- js/admin.js             # Admin panel logic
+|   `-- js/site-assets.js       # Cloudinary site asset loader
+|-- routes/
+|   |-- auth.js                 # Admin/customer auth and password reset
+|   |-- products.js             # Product APIs and image upload
+|   |-- categories.js           # Category APIs
+|   |-- orders.js               # Checkout/order APIs
+|   |-- payment.js              # PhonePe APIs
+|   |-- shiprocket.js           # Shiprocket APIs
+|   |-- content.js              # CMS/site content APIs
+|   `-- config.js               # Public config APIs
+|-- db/
+|   |-- connection.js           # Supabase/Postgres schema and seed logic
+|   `-- queries.js              # Database query helpers
+|-- services/
+|   |-- storage.js              # Cloudinary/local image storage
+|   |-- shipping.js             # Shipping fee calculation
+|   `-- email.js                # Password reset email
+|-- scripts/
+|   |-- migrate-sqlite-to-postgres.js
+|   |-- migrate-sqlite-to-supabase-safe.js
+|   |-- smoke-e2e.js
+|   |-- upload-keychain-images.js
+|   |-- upload-site-assets.js
+|   `-- seed-admin-user.js
+|-- ADMIN_USER_GUIDE.md
+|-- .env.example
+|-- package.json
+`-- server.js
 ```
 
----
+## Local Development Setup
 
-## Step 1 — Install and run locally
+Requirements:
+
+- Node.js 24 or newer
+- Supabase Postgres connection string
+- Cloudinary credentials if testing cloud image upload
+
+Install dependencies:
 
 ```bash
-# 1. Install Node.js from https://nodejs.org (version 18+)
-
-# 2. Install dependencies
 npm install
+```
 
-# 3. Set up environment variables
+Create local environment file:
+
+```bash
+copy .env.example .env
+```
+
+On macOS/Linux:
+
+```bash
 cp .env.example .env
-# Edit .env with your keys (see Step 2 below)
+```
 
-# 4. Start the server
+Edit `.env` with local or production-like credentials.
+
+Start the app:
+
+```bash
 npm start
-# OR for auto-restart during development:
-npm run dev
-
-# 5. Open in browser
-# http://localhost:3000
 ```
 
----
+Open:
 
-## Step 2 — Add your API keys (`.env`)
-
-### PhonePe Payment Gateway
-1. Sign up at https://dashboard.phonepe.com
-2. Go to **Integrations → API Keys**
-3. Copy your **Merchant ID**, **Salt Key**, and **Salt Index** into `.env`
-4. Use `PHONEPE_ENV=sandbox` for testing, `production` when live
-
-### Shiprocket
-1. Sign up at https://app.shiprocket.in
-2. Go to **Settings → API** → generate credentials
-3. Add your pickup address under **Settings → Manage Pickup Addresses**
-4. Copy the pickup location name exactly into `SHIPROCKET_PICKUP_LOCATION`
-
----
-
-## Step 3 — Add your products
-
-Open `public/js/cart.js` and edit the `PRODUCTS` array at the top of the file.
-
-```js
-const PRODUCTS = [
-  {
-    id: "p001",                        // unique ID, no spaces
-    name: "Monsoon Reverie",           // product name
-    price: 2499,                       // price in INR (number only)
-    category: "Paintings",             // used for the filter buttons
-    image: "images/monsoon.jpg",       // put your photo in public/images/
-    description: "Original acrylic, 12×16 inches."
-  },
-  // ... add as many as you like
-];
+```text
+http://localhost:3000
+http://localhost:3000/admin
 ```
 
-Put your product photos in the `public/images/` folder and reference them in the `image` field.
+## Environment Variables
 
----
+The live Render service must have these values configured.
 
-## Step 4 — Add your hero image
+### Core
 
-In `public/index.html`, find:
-```html
-<div class="hero-img-placeholder">Your hero image here</div>
+```bash
+NODE_ENV=production
+PORT=3000
+BASE_URL=https://nikaartscreations.com
+DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+PGSSLMODE=require
+PG_POOL_MAX=5
+JWT_SECRET=change-this-secret
 ```
-Replace with:
-```html
-<img src="images/hero.jpg" alt="Nika Arts Studio" style="width:100%;height:100%;object-fit:cover;" />
+
+Use the Supabase pooler connection string for Render. Avoid direct IPv6-only database hosts if Render cannot reach them.
+
+### Admin
+
+```bash
+ADMIN_USERNAME=admin_username
+ADMIN_PASSWORD=strong_initial_password
+ADMIN_DISPLAY_NAME=Business Admin
+ADMIN_API_KEY=optional-api-key-for-scripts
+ADMIN_SESSION_HOURS=12
 ```
 
----
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` seed the first admin user only when the database has no admin user yet. After that, change the password from `/admin -> Settings`.
 
-## Step 5 — Update your contact email
+### Customer Auth and Email
 
-In `public/index.html`, replace:
-```html
-hello@nikaartsstudio.com
+```bash
+CUSTOMER_SESSION_DAYS=30
+PASSWORD_RESET_MINUTES=30
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-gmail-app-password
 ```
-with your actual email address.
 
----
+Password reset emails require `EMAIL_USER`, `EMAIL_PASS`, and `BASE_URL`.
 
-## Step 6 — Deploy to the internet
-
-### Option A — Free / low-cost (recommended to start)
-
-**Frontend + Backend together on Railway:**
-1. Push this folder to a GitHub repository
-2. Go to https://railway.app → New Project → Deploy from GitHub
-3. Add all your `.env` variables in Railway's dashboard
-4. Railway gives you a public URL automatically
-
-**Or use Render (also free tier):**
-1. https://render.com → New Web Service → connect GitHub
-2. Build command: `npm install`
-3. Start command: `npm start`
-
-### Option B — After buying your domain
-1. Deploy as above
-2. In Railway/Render, add your custom domain
-3. Point your domain's DNS to Railway/Render (they give you the records)
-4. Update `BASE_URL` in `.env` to `https://yourdomain.com`
-
----
-
-## Shipping logic
-
-Shipping is calculated on the server from environment settings, so the cart, checkout, and order creation all use the same rule.
+### Shipping
 
 ```bash
 SHIPPING_FEE=99
 FREE_SHIPPING_MINIMUM=2000
 ```
 
-With the default values, orders below Rs. 2,000 charge Rs. 99 shipping and orders of Rs. 2,000 or more get free shipping.
+Default rule:
 
-Update the package dimensions and weight in `routes/shiprocket.js` to match your actual packaging:
-```js
-length: 20,    // cm
-breadth: 15,   // cm
-height: 10,    // cm
-weight: 0.5    // kg
-```
+- Cart subtotal below Rs. 2,000: Rs. 99 shipping
+- Cart subtotal Rs. 2,000 or above: free shipping
 
----
-
-## Testing payments (sandbox)
-
-Use PhonePe's test credentials (from their dashboard) with `PHONEPE_ENV=sandbox`.
-No real money is charged in sandbox mode.
-
----
-
-## Questions?
-
-For PhonePe integration issues: https://developer.phonepe.com/v1/docs
-For Shiprocket issues: https://apidocs.shiprocket.in
-
----
-
-## Database and admin dashboard
-
-This project now uses Supabase Postgres for cloud-hosted data. It stores:
-
-- products
-- stock levels
-- orders
-- order items
-- payment events
-- sales inventory events
-- logistics events
-
-Required database connection:
-
-```bash
-DATABASE_URL=postgresql://postgres.your-project-ref:your-password@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
-PGSSLMODE=require
-PG_POOL_MAX=5
-```
-
-Admin page:
-
-```text
-http://localhost:3000/admin
-```
-
-Customer-friendly page URLs:
-
-```text
-http://localhost:3000/
-http://localhost:3000/shop
-http://localhost:3000/product?id=PRODUCT_ID
-http://localhost:3000/cart
-http://localhost:3000/checkout
-http://localhost:3000/track-order
-http://localhost:3000/account
-```
-
-Legacy `.html` URLs redirect to these clean routes.
-
-Set this in `.env` to protect admin product/order APIs:
-
-```bash
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-this-password
-ADMIN_API_KEY=change-this-secret
-```
-
-Use the admin page to add products, update product names/categories/prices/stock, hide products, view sales totals, and update fulfillment/logistics status.
-
-If you need to copy data from the old local SQLite file into Supabase once, set `DATABASE_URL` and run:
-
-```bash
-npm run db:migrate:sqlite
-```
-
-By default this reads `data/store.sqlite`. To migrate from another file, temporarily set `SQLITE_DB_PATH` before running the script.
-
-### Adding categories
-
-Open:
-
-```text
-http://localhost:3000/admin
-```
-
-Use **Add category** before adding products. New categories are stored in Postgres and appear:
-
-- in the **Add product** category dropdown
-- in each existing product's category dropdown
-- on the public shop page category filter
-
-The shop page shows all active categories, including newly added categories.
-
-### Uploading and replacing product photos
-
-Open:
-
-```text
-http://localhost:3000/admin
-```
-
-For each product row:
-
-1. Click **Choose file**
-2. Select a JPEG, PNG, or WEBP image
-3. Click **Upload photo**
-
-The image is saved under:
-
-```text
-public/images/products/
-```
-
-The product record is updated in Postgres automatically. To replace a photo later, upload a new file for the same product; the storefront will use the newest uploaded image path.
-
-The storefront loads products from `/api/products`; products are no longer managed by editing the frontend JavaScript array.
-
-Important: the database integration uses the `pg` Postgres client, so `DATABASE_URL` must be configured locally and in Render before the server can start.
-
-### Free cloud image storage
-
-Product image uploads can use Cloudinary instead of local disk storage.
-
-1. Create a free Cloudinary account.
-2. In Cloudinary, open Dashboard / API keys.
-3. Add these values to `.env`:
+### Cloudinary
 
 ```bash
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 CLOUDINARY_PRODUCT_FOLDER=nika-arts/products
+CLOUDINARY_SITE_FOLDER=nika-arts/site
 ```
 
-After these are set, admin product image uploads are sent to Cloudinary and the product stores the Cloudinary CDN URL in Postgres. If the variables are missing, uploads fall back to `public/images/products/` for local development.
+When these values are present, product and site image uploads use Cloudinary. If they are missing in local development, image upload can fall back to local file storage.
 
-The admin Inventory screen also includes a **Cloud Image Library** uploader where you can upload multiple JPEG, PNG, or WEBP files at once and copy the resulting cloud URLs.
+### PhonePe
 
-### Opening the database directly
+```bash
+PHONEPE_MERCHANT_ID=your_merchant_id
+PHONEPE_SALT_KEY=your_salt_key
+PHONEPE_SALT_INDEX=1
+PHONEPE_ENV=sandbox
+```
 
-Open your Supabase project, then go to **Table Editor** for a friendly view or **SQL Editor** for queries. Your admin username/password protects the backend/admin APIs; Supabase project access controls who can open the raw database.
+Use `PHONEPE_ENV=production` only after PhonePe production onboarding is complete.
 
-Recommended free SQL tools:
+### Shiprocket
 
-- Supabase Table Editor
-- Supabase SQL Editor
-- DBeaver Community Edition using the Supabase Postgres connection string
+```bash
+SHIPROCKET_EMAIL=your_shiprocket_email
+SHIPROCKET_PASSWORD=your_shiprocket_password
+SHIPROCKET_PICKUP_LOCATION=Primary
+SHIPROCKET_PICKUP_PINCODE=641004
+```
+
+`SHIPROCKET_PICKUP_LOCATION` must exactly match the pickup location configured in Shiprocket.
+
+## Admin Operations
+
+Admin operations are performed from:
+
+```text
+/admin
+```
+
+Use the admin panel for product and content work. Do not edit `public/js/cart.js` to add products; products now come from Supabase through `/api/products`.
+
+Common admin actions:
+
+- Add one product
+- Upload product image to Cloudinary
+- Upload many images to Cloudinary
+- Bulk upload products through CSV
+- Edit product name/category/price/stock/status
+- Hide a product from storefront
+- Remove duplicate/accidental products
+- Export products CSV
+- View sales dashboard
+- Export orders CSV
+- Update fulfillment/logistics status
+- Upload logo and artist image
+- Edit homepage/about/contact content
+- Change admin password
+
+Detailed steps are in [ADMIN_USER_GUIDE.md](ADMIN_USER_GUIDE.md).
+
+## Product and Image Flow
+
+Recommended product upload flow:
+
+1. Upload product images from `/admin -> Inventory Management -> Cloud Image Library`.
+2. Copy Cloudinary URLs.
+3. Add products manually or through CSV.
+4. Confirm product images and details in the inventory table.
+5. Check the public `/shop` page.
+6. Remove duplicates if a CSV upload created any.
+
+CSV format:
+
+```csv
+Name,Category,Price,Stock,Image,Description
+Bee Couple Keychains,Keychains,499,5,https://res.cloudinary.com/.../bee-couple.jpg,Handmade crochet bee couple keychains.
+```
+
+## Database
+
+The app initializes required tables automatically on server startup.
+
+Main tables include:
+
+- `products`
+- `categories`
+- `orders`
+- `order_items`
+- `customers`
+- `customer_sessions`
+- `customer_password_resets`
+- `admin_users`
+- `admin_sessions`
+- `inventory_events`
+- `payments`
+- `logistics_events`
+- `settings`
+
+To migrate from the old SQLite database:
+
+```bash
+npm run db:migrate:sqlite
+```
+
+Safer Supabase migration script:
+
+```bash
+npm run db:migrate:supabase-safe
+```
+
+Use migration scripts carefully and only when you intentionally want to copy old local data into Supabase.
+
+## Useful Scripts
+
+```bash
+npm start
+npm run dev
+npm run test:e2e:smoke
+npm run db:migrate:sqlite
+npm run db:migrate:supabase-safe
+npm run admin:seed
+npm run upload:keychains
+npm run upload:site-assets
+```
+
+Smoke test:
+
+```bash
+npm run test:e2e:smoke
+```
+
+The smoke test checks health, products, customer auth basics, password change, logout/login, and payment initiation up to the configured payment response.
+
+## Deployment Flow
+
+Current deployment flow:
+
+1. Make code changes locally.
+2. Test locally.
+3. Commit changes.
+4. Push to GitHub `main`.
+5. Render auto-deploys from GitHub.
+6. Verify the Render URL or custom domain.
+
+Render build command:
+
+```bash
+npm install
+```
+
+Render start command:
+
+```bash
+npm start
+```
+
+After custom domain is fully verified, production `BASE_URL` should be:
+
+```text
+https://nikaartscreations.com
+```
+
+## Production Verification Checklist
+
+After each important deployment:
+
+1. Open `/`.
+2. Open `/shop`.
+3. Confirm Cloudinary images load.
+4. Add product to cart.
+5. Confirm shipping fee rule in cart/checkout.
+6. Open `/admin` and log in.
+7. Confirm inventory loads.
+8. Confirm dashboard loads.
+9. Open `/account`.
+10. Test customer login/logout if needed.
+11. Test password reset after `BASE_URL` and email are configured.
+12. Run a payment test in the correct PhonePe environment.
+13. Verify Shiprocket serviceability for a known pincode.
+
+## Known Pending Production Items
+
+- Complete PhonePe production business onboarding and live payment verification.
+- Complete Shiprocket live order creation verification.
+- Finalize custom domain DNS and `BASE_URL`.
+- Verify password reset emails on the live domain.
+- Review policy pages with final business/legal wording.
+- Decide GST display requirements based on business registration and tax advice.
+- Add backups/export strategy for Supabase.
+- Add multi-admin or role-based permissions if more operators are added.
+- Add admin audit log screen if operational traceability becomes important.
+
+## Security Notes
+
+- Never commit `.env`.
+- Never share Supabase, Cloudinary, PhonePe, Shiprocket, Render, or email credentials.
+- Use strong admin password and rotate it if shared accidentally.
+- Keep `JWT_SECRET` private and strong.
+- Prefer Render environment variables for production secrets.
+
+## More Documentation
+
+Admin/business guide:
+
+[ADMIN_USER_GUIDE.md](ADMIN_USER_GUIDE.md)
+
+Environment variable template:
+
+[.env.example](.env.example)
