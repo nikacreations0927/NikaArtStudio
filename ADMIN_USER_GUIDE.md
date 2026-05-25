@@ -1,392 +1,259 @@
 # Nika Arts Studio Admin and End-User Guide
 
-This guide is written for the business admin who will manage Nika Arts Studio day to day. It explains what the website does, how the admin panel works, what has been completed so far, and what still needs attention before full production use.
+This is a visual operating guide for the person managing Nika Arts Studio. It uses diagrams and quick-reference tables first, with only short notes where needed.
 
-## 1. Website Architecture
+## 1. Big Picture
 
-Nika Arts Studio is a full-stack e-commerce website. The same Node.js application serves both the customer website and the admin website.
+```mermaid
+flowchart LR
+  Customer["Customer"] --> Storefront["Website storefront<br/>/, /shop, /product, /cart, /checkout"]
+  Admin["Business admin"] --> AdminPanel["Admin panel<br/>/admin"]
 
-### Customer Website
+  Storefront --> API["Node.js + Express APIs"]
+  AdminPanel --> API
 
-Customer-facing pages use clean URLs:
+  API --> DB["Supabase Postgres<br/>products, orders, customers, sessions"]
+  API --> Cloudinary["Cloudinary<br/>product images, logo, artist image"]
+  API --> PhonePe["PhonePe<br/>payments"]
+  API --> Shiprocket["Shiprocket<br/>shipping and tracking"]
+  API --> Email["Email service<br/>password reset"]
 
-| Page | URL | Purpose |
-|---|---|---|
-| Home | `/` | Brand introduction, hero image, featured products, about, contact |
-| Shop | `/shop` | Product listing and category filtering |
-| Product detail | `/product?id=PRODUCT_ID` | Single product view |
-| Cart | `/cart` | Cart review and quantity updates |
-| Checkout | `/checkout` | Customer details, shipping, payment start |
-| Success | `/success` | Order confirmation after payment |
-| Track order | `/track-order` | Order tracking by login or order details |
-| Account | `/account` | Customer login, registration, password management |
-| Policy pages | `/privacy`, `/shipping`, `/returns` | Static customer information |
-
-Old `.html` URLs redirect to the clean URLs, so customers should normally see links like `https://nikaartscreations.com/shop` instead of `products.html`.
-
-### Admin Website
-
-The admin site is available at:
-
-```text
-/admin
+  GitHub["GitHub<br/>source code"] --> Render["Render<br/>live app hosting"]
+  GoDaddy["GoDaddy domain"] --> Render
 ```
 
-It is protected by admin login. After login, the admin can manage products, product images, stock, categories, orders, sales summary, fulfillment/logistics status, homepage content, logo/artist images, and admin password.
+### Where Things Live
 
-### Backend and Data Flow
-
-The backend is an Express server in `server.js`.
-
-| Area | API path | Used for |
+| What | Where it lives | Who usually touches it |
 |---|---|---|
-| Authentication | `/api/auth` | Admin login, customer login, password reset, sessions |
-| Products | `/api/products` | Product CRUD, image upload, bulk upload |
-| Categories | `/api/categories` | Category list and creation |
-| Orders | `/api/orders` | Checkout, order list, order tracking, status updates |
-| Content/CMS | `/api/content` | Homepage text and site images |
-| Payment | `/api/payment` | PhonePe payment initiation and callback |
-| Logistics | `/api/shiprocket` | Shiprocket serviceability, tracking, order creation |
-| Config | `/api/config` | Public config such as shipping rules |
+| Code | GitHub | Developer/admin with technical access |
+| Live app | Render | Developer/admin |
+| Products/orders/customers | Supabase Postgres | App and admin panel |
+| Product images | Cloudinary | Admin panel |
+| Logo/artist image | Cloudinary | Admin CMS |
+| Domain/DNS | GoDaddy + Render | Owner/developer |
+| Payment setup | PhonePe | Business owner |
+| Shipping setup | Shiprocket | Business owner/admin |
 
-### Storage
+## 2. Customer Site Map
 
-| Data type | Stored in |
+```mermaid
+flowchart TD
+  Home["/"] --> Shop["/shop"]
+  Shop --> Product["/product?id=PRODUCT_ID"]
+  Product --> Cart["/cart"]
+  Cart --> Checkout["/checkout"]
+  Checkout --> PhonePe["PhonePe payment"]
+  PhonePe --> Success["/success"]
+  Success --> Track["/track-order"]
+
+  Home --> Account["/account"]
+  Account --> Login["Login / Register"]
+  Account --> Password["Change / Reset password"]
+  Home --> Policies["/privacy<br/>/shipping<br/>/returns"]
+```
+
+Clean URLs are used for customers. Old `.html` URLs redirect to these clean routes.
+
+## 3. Admin Panel Map
+
+```mermaid
+flowchart TD
+  AdminLogin["/admin login"] --> Tabs["Admin tabs"]
+  Tabs --> Dashboard["Dashboard & Sales"]
+  Tabs --> Inventory["Inventory Management"]
+  Tabs --> CMS["Site Content CMS"]
+  Tabs --> Settings["Settings"]
+
+  Dashboard --> SalesSummary["Sales summary"]
+  Dashboard --> Orders["Orders table"]
+  Dashboard --> OrderExport["Export orders CSV"]
+  Dashboard --> StatusUpdate["Update fulfillment / logistics"]
+
+  Inventory --> ProductSearch["Search / filter / sort"]
+  Inventory --> AddProduct["Add product"]
+  Inventory --> EditProduct["Edit product"]
+  Inventory --> BulkImages["Upload images"]
+  Inventory --> BulkCSV["Upload CSV"]
+  Inventory --> ProductExport["Export products CSV"]
+  Inventory --> HideRemove["Hide / Remove products"]
+
+  CMS --> HeroText["Hero text"]
+  CMS --> AboutText["About text"]
+  CMS --> ContactInfo["Contact info"]
+  CMS --> SiteImages["Logo / artist image"]
+
+  Settings --> AdminPassword["Change admin password"]
+```
+
+## 4. Admin Privileges
+
+| Area | Admin can do |
 |---|---|
-| Products, orders, customers, sessions, stock events | Supabase Postgres |
-| Product images | Cloudinary, when Cloudinary credentials are configured |
-| Logo and artist image | Cloudinary, through the CMS upload |
-| Code | GitHub |
-| Live hosting | Render |
-| Domain | GoDaddy DNS pointing to Render |
+| Login/security | Log in, log out, change admin password |
+| Dashboard | View sales summary, top products, low stock |
+| Orders | View orders, export orders, update fulfillment/logistics status |
+| Products | Add, edit, hide, remove, search, filter, sort, paginate |
+| Stock | Update stock through product editor |
+| Images | Upload single product image, bulk upload images, upload logo/artist image |
+| CSV | Bulk upload products, export products |
+| CMS | Edit hero, about, contact, logo, artist image |
 
-The important separation is: code lives in GitHub, product/order data lives in Supabase, images/files live in Cloudinary, and Render runs the live application.
+Current limitations:
 
-## 2. Admin Login and Logout
+| Not available yet | Why it matters |
+|---|---|
+| Multi-admin management screen | Needed if more staff need separate accounts |
+| Role-based permissions | Needed if staff should have limited access |
+| Refund management | Payment refunds still need business/payment process |
+| Shiprocket label screen | Shiprocket order creation exists, but label workflow needs final live validation |
+| Admin audit log screen | Helpful for tracking who changed what |
 
-### Login
+## 5. Product Upload Workflows
 
-1. Open `/admin`.
-2. Enter admin username.
-3. Enter admin password.
-4. Click **Log in**.
-5. Once logged in, the admin tabs become usable.
+### A. Add One Product
 
-Admin login uses a secure server-side session cookie. The password is stored as a hash in Supabase, not as plain text.
-
-### Logout
-
-1. Open `/admin`.
-2. Click **Log out**.
-3. The current admin session is cleared.
-
-### Change Admin Password
-
-1. Log in to `/admin`.
-2. Open **Settings**.
-3. Enter current password.
-4. Enter new password.
-5. Confirm new password.
-6. Click **Update Password**.
-
-After password change, the current session remains active and other admin sessions are signed out.
-
-Recommended password rule: use at least 12 characters with a mix of words, numbers, and symbols.
-
-## 3. Admin Dashboard and Orders
-
-Open:
-
-```text
-/admin -> Dashboard & Sales
+```mermaid
+flowchart LR
+  Start["Open /admin"] --> Inventory["Inventory Management"]
+  Inventory --> Add["Click Add Product"]
+  Add --> Details["Enter name, category, price, stock, description"]
+  Details --> Save["Save Product"]
+  Save --> Edit["Open product with Edit"]
+  Edit --> Image["Choose image file"]
+  Image --> SaveAgain["Save Changes"]
+  SaveAgain --> Verify["Check product on /shop"]
 ```
 
-The dashboard shows paid order count, revenue, product sales, low-stock count, top products, low-stock products, and recent orders.
+Quick checklist:
 
-### Export Orders CSV
+| Field | Rule |
+|---|---|
+| Name | Clear customer-facing product name |
+| Category | Reuse existing category when possible |
+| Price | Number only, in INR |
+| Stock | Current sellable quantity |
+| Description | Short and customer friendly |
+| Image | JPEG, PNG, or WEBP, max 4 MB |
 
-1. Open **Dashboard & Sales**.
-2. Click **Export orders CSV**.
-3. A CSV file downloads with order ID, customer, email, total, payment, fulfillment, logistics, and created date.
+### B. Bulk Upload Images First
 
-Use this for offline reconciliation, manual reporting, or customer support.
+```mermaid
+sequenceDiagram
+  participant Admin
+  participant AdminPanel as Admin panel
+  participant API as Product API
+  participant Cloudinary
 
-### Update Fulfillment Status
-
-For each order, the admin can choose:
-
-- `PENDING`
-- `READY_FOR_SHIPPING`
-- `PACKED`
-- `SHIPPED`
-- `DELIVERED`
-- `CANCELLED`
-
-Steps:
-
-1. Open **Dashboard & Sales**.
-2. Find the order.
-3. Change the **Fulfillment** dropdown.
-4. Click **Save**.
-
-### Update Logistics Status
-
-For each order, the admin can choose:
-
-- `NOT_CREATED`
-- `CREATED`
-- `PICKUP_SCHEDULED`
-- `IN_TRANSIT`
-- `DELIVERED`
-- `RETURNED`
-- `FAILED`
-
-Steps:
-
-1. Open **Dashboard & Sales**.
-2. Find the order.
-3. Change the **Logistics** dropdown.
-4. Click **Save**.
-
-## 4. Inventory Management
-
-Open:
-
-```text
-/admin -> Inventory Management
+  Admin->>AdminPanel: Select up to 30 image files
+  AdminPanel->>API: POST /api/products/images/bulk
+  API->>Cloudinary: Upload images
+  Cloudinary-->>API: Secure image URLs
+  API-->>AdminPanel: Uploaded image list
+  AdminPanel-->>Admin: Show URLs to copy into CSV/products
 ```
 
-The inventory screen is meant for daily business use. It is compact, searchable, sortable, filterable, and paginated.
+Use this when preparing many products at once.
 
-The summary cards show total products, live products, hidden products, low-stock products, and out-of-stock products.
+### C. Bulk Upload Products by CSV
 
-Search works across product name, category, and description.
-
-Available filters:
-
-- Category
-- All products
-- Live products
-- Hidden products
-- Low stock
-- Out of stock
-
-Available sort options:
-
-- Newest first
-- Name A-Z
-- Stock low-high
-- Price high-low
-
-Use **Previous** and **Next** at the bottom of the inventory table to move through product pages.
-
-## 5. Add a Single Product with Image
-
-Best day-to-day workflow:
-
-1. Open `/admin`.
-2. Go to **Inventory Management**.
-3. Click **Add Product**.
-4. Fill product name, category, price, stock, and short description.
-5. Click **Save Product**.
-6. Find the newly added product in the Product Manager table.
-7. Click **Edit**.
-8. Select the product image file in the editor.
-9. Click **Save Changes**.
-
-When Cloudinary credentials are configured, the image is uploaded to Cloudinary and the Cloudinary URL is stored against the product in Supabase.
-
-Supported image types:
-
-- JPEG
-- PNG
-- WEBP
-
-Current image size limit:
-
-```text
-4 MB per image
+```mermaid
+flowchart TD
+  Template["Download CSV template"] --> Fill["Fill product rows"]
+  Fill --> Images["Paste Cloudinary image URLs"]
+  Images --> Upload["Upload CSV in admin"]
+  Upload --> DB["Products saved in Supabase"]
+  DB --> Review["Review newest products"]
+  Review --> Decision{"Duplicates?"}
+  Decision -->|No| Publish["Products ready on shop"]
+  Decision -->|Yes| Remove["Use Remove on duplicate rows"]
+  Remove --> Publish
 ```
 
-Tip: for faster website loading, keep product images compressed and clear. A good target is usually below 1 MB per image.
-
-## 6. Upload Many Images to Cloudinary
-
-Use this when you have a folder of product images and want cloud URLs first.
-
-1. Open `/admin`.
-2. Go to **Inventory Management**.
-3. In **Cloud Image Library**, click **Upload Images**.
-4. Select up to 30 images at a time.
-5. Wait for upload to complete.
-6. Copy the generated Cloudinary URL for each image.
-7. Use those URLs in a product CSV or product image field.
-
-The admin panel will show whether Cloudinary is active. If Cloudinary is not configured, it will warn that local fallback is active.
-
-## 7. Bulk Product Upload with CSV
-
-Use CSV upload when adding many products.
-
-### Download Template
-
-1. Open `/admin`.
-2. Go to **Inventory Management**.
-3. Click **Download CSV Template**.
-
-CSV columns:
+CSV format:
 
 ```csv
 Name,Category,Price,Stock,Image,Description
-```
-
-Example:
-
-```csv
 Bee Couple Keychains,Keychains,499,5,https://res.cloudinary.com/.../bee-couple.jpg,Handmade crochet bee couple keychains.
 ```
 
-### Upload CSV
+CSV upload adds products. It does not merge duplicates automatically.
 
-1. Prepare the CSV.
-2. Make sure every product has name, category, price, stock, image URL if available, and description.
-3. Open `/admin`.
-4. Go to **Inventory Management**.
-5. Click **Upload CSV**.
-6. Select the CSV file.
-7. Wait for success message.
-8. Review the products in the table.
+## 6. Product Status Decision Tree
 
-### Important Duplicate Note
+```mermaid
+flowchart TD
+  ProductIssue["Need to change product visibility?"] --> Temp{"Temporary?"}
+  Temp -->|Yes| Hide["Use Hide"]
+  Temp -->|No| Duplicate{"Duplicate or accidental upload?"}
+  Duplicate -->|Yes| Remove["Use Remove"]
+  Duplicate -->|No| Edit["Use Edit and update product details"]
 
-Bulk CSV upload adds new products. It does not automatically merge duplicates. If duplicates are uploaded, search for the duplicate product, confirm which one should be removed, and click **Remove** on the unwanted duplicate.
-
-Use **Remove** only for accidental or duplicate products.
-
-## 8. Edit Product Details
-
-1. Open **Inventory Management**.
-2. Find the product.
-3. Click **Edit**.
-4. Update name, category, description, price, stock, status, or image file.
-5. Click **Save Changes**.
-
-If stock is changed, the backend records an inventory event for audit/history.
-
-## 9. Hide Product vs Remove Product
-
-### Hide
-
-Use **Hide** when a product should not be visible to customers, but may be reused later.
-
-Behavior:
-
-- Product stays in admin.
-- Product is hidden from storefront.
-- Data is preserved.
-
-Typical use cases:
-
-- Temporarily out of sale
-- Seasonal item
-- Product needs better image/description before launch
-
-### Remove
-
-Use **Remove** for duplicates or accidental uploads.
-
-Behavior:
-
-- If the product has no order history, it is permanently removed.
-- If the product has order history, it is archived so past orders remain safe.
-- If possible, unused Cloudinary image cleanup is attempted.
-
-Typical use cases:
-
-- Duplicate created by CSV upload
-- Wrong product added accidentally
-- Test product created by mistake
-
-## 10. Export Products CSV
-
-1. Open **Inventory Management**.
-2. Click **Export CSV**.
-3. A product CSV downloads.
-
-Export includes ID, name, category, price, stock, active status, image URL, and description. Use this before major inventory changes as a quick backup.
-
-## 11. Site Content CMS
-
-Open:
-
-```text
-/admin -> Site Content (CMS)
+  Hide --> HiddenResult["Hidden from storefront<br/>Still visible in admin"]
+  Remove --> OrderHistory{"Has order history?"}
+  OrderHistory -->|No| Delete["Deleted permanently"]
+  OrderHistory -->|Yes| Archive["Archived to protect old orders"]
+  Edit --> Live["Product remains live or hidden based on status field"]
 ```
 
-The CMS controls public homepage content.
+| Action | Use when | Result |
+|---|---|---|
+| Edit | Correct name, price, stock, category, description, image | Product updated |
+| Hide | Temporarily stop selling | Not shown to customers |
+| Remove | Duplicate/test/wrong product | Deleted or archived safely |
 
-### Hero Section
+## 7. Order Workflow
 
-Admin can update eyebrow text, main title, and subtitle.
-
-The main title allows simple HTML. For example, the current design uses `<em>` for highlighted italic text. Use HTML carefully and avoid complex tags.
-
-### Website Images
-
-Admin can upload:
-
-- Logo image
-- Artist image
-
-Steps:
-
-1. Open **Site Content (CMS)**.
-2. Choose file under **Logo image** or **Artist image**.
-3. Click the relevant upload button.
-4. The image is uploaded to Cloudinary.
-5. The storefront uses the Cloudinary URL automatically.
-
-### About Section
-
-Admin can update about eyebrow, title, paragraph 1, and paragraph 2.
-
-### Contact Details
-
-Admin can update contact email, display phone number, and phone link.
-
-Phone link should normally use the format:
-
-```text
-+91XXXXXXXXXX
+```mermaid
+stateDiagram-v2
+  [*] --> Cart
+  Cart --> Checkout
+  Checkout --> PaymentStarted
+  PaymentStarted --> Paid: PhonePe success
+  PaymentStarted --> Failed: PhonePe failure/cancel
+  Paid --> PendingFulfillment
+  PendingFulfillment --> ReadyForShipping
+  ReadyForShipping --> Packed
+  Packed --> Shipped
+  Shipped --> Delivered
+  PendingFulfillment --> Cancelled
+  Failed --> [*]
+  Delivered --> [*]
+  Cancelled --> [*]
 ```
 
-Example:
+Admin order controls:
 
-```text
-+919876543210
+| Field | Values |
+|---|---|
+| Fulfillment | `PENDING`, `READY_FOR_SHIPPING`, `PACKED`, `SHIPPED`, `DELIVERED`, `CANCELLED` |
+| Logistics | `NOT_CREATED`, `CREATED`, `PICKUP_SCHEDULED`, `IN_TRANSIT`, `DELIVERED`, `RETURNED`, `FAILED` |
+
+Admin steps:
+
+1. Open `/admin -> Dashboard & Sales`.
+2. Find order.
+3. Update fulfillment/logistics dropdown.
+4. Click **Save**.
+
+## 8. Customer Account and Password Flow
+
+```mermaid
+flowchart TD
+  Account["/account"] --> Existing{"Existing customer?"}
+  Existing -->|No| Register["Register"]
+  Existing -->|Yes| Login["Login"]
+  Login --> Session["Secure customer session"]
+  Session --> Orders["View linked orders"]
+  Session --> ChangePassword["Change password"]
+
+  Account --> Forgot["Forgot password"]
+  Forgot --> Email["Email reset link"]
+  Email --> Reset["Reset password"]
+  Reset --> NewSession["Customer logged in with new password"]
 ```
 
-After editing content, click **Save Content**.
-
-## 12. Customer Experience
-
-Customers can browse products, filter by category, view product details, add products to cart, update cart quantity, checkout, pay through PhonePe when configured, create account, log in, log out, change password, request password reset, and track orders.
-
-Customer account is available at:
-
-```text
-/account
-```
-
-Order tracking is available at:
-
-```text
-/track-order
-```
-
-### Password Reset Email
-
-Password reset emails require:
+Password reset email needs:
 
 ```text
 EMAIL_USER
@@ -394,84 +261,117 @@ EMAIL_PASS
 BASE_URL
 ```
 
-In local development, if email is not configured, the app can return a reset link for testing. In production, email credentials and `BASE_URL` must be correct.
-
-After the final domain is live, `BASE_URL` should be:
+Production `BASE_URL` should be:
 
 ```text
 https://nikaartscreations.com
 ```
 
-## 13. Shipping Rule
+## 9. Shipping Logic
 
-Shipping is calculated by backend code, not hardcoded inside a single page.
+```mermaid
+flowchart LR
+  CartSubtotal["Cart subtotal"] --> Check{"Subtotal >= Rs. 2000?"}
+  Check -->|Yes| Free["Shipping = Rs. 0"]
+  Check -->|No| Paid["Shipping = Rs. 99"]
+  Free --> Total["Order total"]
+  Paid --> Total
+```
 
-Default values:
+Configured through environment variables:
 
 ```text
 SHIPPING_FEE=99
 FREE_SHIPPING_MINIMUM=2000
 ```
 
-Rule:
+## 10. CMS Workflow
 
-- Order subtotal below Rs. 2,000: Rs. 99 shipping
-- Order subtotal Rs. 2,000 or above: free shipping
+```mermaid
+flowchart TD
+  CMS["/admin -> Site Content CMS"] --> Text["Edit hero/about/contact text"]
+  CMS --> Images["Upload logo/artist image"]
+  Images --> Cloudinary["Cloudinary stores image"]
+  Cloudinary --> Settings["Image URL saved in Supabase settings"]
+  Text --> Settings
+  Settings --> Storefront["Storefront loads latest content"]
+```
 
-These values are environment variables, so they can be changed later without rewriting checkout logic.
+CMS fields:
 
-## 14. Admin Privileges
+| Section | Admin can update |
+|---|---|
+| Hero | Eyebrow, title, subtitle |
+| Images | Logo image, artist image |
+| About | Eyebrow, title, paragraph 1, paragraph 2 |
+| Contact | Email, display phone, phone link |
 
-Current admin privileges:
+Use simple HTML only in the hero title, such as `<em>highlighted text</em>`.
 
-- Log in to admin panel
-- View sales dashboard
-- View recent orders
-- Export order CSV
-- Update fulfillment status
-- Update logistics status
-- View product inventory
-- Search/filter/sort/paginate products
-- Add products
-- Edit product details
-- Upload product images to Cloudinary
-- Bulk upload images
-- Bulk upload products using CSV
-- Hide products from storefront
-- Remove duplicate/accidental products
-- Export product CSV
-- Edit homepage content
-- Upload logo and artist images
-- Update admin password
+## 11. Deployment Flow
 
-Current admin limitations:
+```mermaid
+flowchart LR
+  Local["Local changes"] --> Test["Test locally"]
+  Test --> Commit["Git commit"]
+  Commit --> Push["Push to GitHub main"]
+  Push --> Render["Render auto-deploy"]
+  Render --> Live["Live website"]
+  Live --> Verify["Verify homepage, shop, admin, checkout"]
+```
 
-- No multi-admin user management screen yet.
-- No role-based permissions yet.
-- No refund management yet.
-- No direct Shiprocket label generation screen yet.
-- No in-admin Cloudinary folder browser yet; the current flow uploads and displays generated URLs.
-- No audit screen for every admin action yet, though stock events are recorded.
+Render settings:
 
-## 15. Mild Technical Details for Testing
+| Setting | Value |
+|---|---|
+| Build command | `npm install` |
+| Start command | `npm start` |
+| Node version | `>=24.0.0` |
 
-After deployment, test:
+## 12. Production Environment Checklist
 
-1. Home page loads at `/`.
-2. Shop page loads at `/shop`.
-3. Product images load from Cloudinary.
-4. Add to cart works.
-5. Cart quantity update works.
-6. Checkout page shows correct shipping.
-7. Admin login works.
-8. Inventory products load.
-9. Add/edit/hide/remove product works.
-10. CMS logo/artist image upload works.
-11. Customer register/login/logout works.
-12. Password reset email works after `BASE_URL` and email settings are configured.
-13. Order tracking loads the correct order.
+```mermaid
+flowchart TD
+  Env["Render Environment Variables"] --> Core["Core<br/>BASE_URL, DATABASE_URL, PGSSLMODE, JWT_SECRET"]
+  Env --> Admin["Admin<br/>ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SESSION_HOURS"]
+  Env --> Email["Email<br/>EMAIL_USER, EMAIL_PASS"]
+  Env --> Cloudinary["Cloudinary<br/>CLOUDINARY_*"]
+  Env --> Payment["PhonePe<br/>PHONEPE_*"]
+  Env --> Shipping["Shiprocket<br/>SHIPROCKET_*"]
+```
 
-Useful URLs:
+Important production values:
+
+| Group | Required values |
+|---|---|
+| Core | `BASE_URL`, `DATABASE_URL`, `PGSSLMODE`, `JWT_SECRET` |
+| Admin | `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_HOURS` |
+| Email | `EMAIL_USER`, `EMAIL_PASS` |
+| Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
+| PhonePe | `PHONEPE_MERCHANT_ID`, `PHONEPE_SALT_KEY`, `PHONEPE_SALT_INDEX`, `PHONEPE_ENV` |
+| Shiprocket | `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_PICKUP_LOCATION`, `SHIPROCKET_PICKUP_PINCODE` |
+
+Never commit `.env`.
+
+## 13. Testing Map
+
+```mermaid
+flowchart TD
+  Smoke["Production smoke test"] --> Home["Home page loads"]
+  Smoke --> Shop["Shop products/images load"]
+  Smoke --> Cart["Add to cart works"]
+  Smoke --> Checkout["Shipping rule shown correctly"]
+  Smoke --> Admin["Admin login works"]
+  Smoke --> Inventory["Inventory loads"]
+  Smoke --> CMS["CMS image/content update works"]
+  Smoke --> Customer["Customer login/logout works"]
+  Smoke --> Reset["Password reset email works"]
+  Smoke --> Track["Order tracking works"]
+  Smoke --> Payment["PhonePe test/live payment"]
+  Smoke --> Ship["Shiprocket serviceability"]
+```
+
+Useful health/API URLs:
 
 ```text
 /api/health
@@ -480,194 +380,132 @@ Useful URLs:
 /api/config
 ```
 
-`/api/products?includeInactive=true` requires admin authentication.
-
-Important Render environment variables:
+Admin-only product view:
 
 ```text
-NODE_ENV=production
-BASE_URL=https://nikaartscreations.com
-DATABASE_URL=Supabase pooler connection string
-PGSSLMODE=require
-ADMIN_USERNAME=...
-ADMIN_PASSWORD=...
-JWT_SECRET=...
-EMAIL_USER=...
-EMAIL_PASS=...
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
-PHONEPE_MERCHANT_ID=...
-PHONEPE_SALT_KEY=...
-PHONEPE_SALT_INDEX=...
-PHONEPE_ENV=production
-SHIPROCKET_EMAIL=...
-SHIPROCKET_PASSWORD=...
-SHIPROCKET_PICKUP_LOCATION=...
-SHIPROCKET_PICKUP_PINCODE=...
+/api/products?includeInactive=true
 ```
 
-Do not commit `.env` to GitHub.
+## 14. What Has Been Built
 
-## 16. What Has Been Done So Far
-
-From scratch, the project now includes:
-
-- Customer-facing storefront
-- Clean customer URLs without `.html`
-- Product listing and category filter
-- Product detail page
-- Cart
-- Checkout
-- Shipping fee rule
-- Customer registration/login/logout
-- Customer password change
-- Customer forgot/reset password
-- Order tracking
-- Admin login/logout
-- Admin password change
-- Admin dashboard
-- Sales summary
-- Order listing
-- Fulfillment/logistics status updates
-- Product inventory manager
-- Product search/filter/sort/pagination
-- Add/edit/hide/remove product
-- Bulk image upload
-- Bulk CSV product upload
-- Product CSV export
-- Order CSV export
-- Cloudinary product image storage
-- Cloudinary logo/artist image storage
-- CMS for homepage/about/contact content
-- Supabase Postgres migration from local SQLite
-- Render deployment setup
-- GoDaddy custom domain setup guidance
-- PhonePe integration routes
-- Shiprocket integration routes
-- Email reset support
-- GitHub repository setup and push flow
-
-## 17. What Still Needs To Be Completed or Verified
-
-Recommended pending items before calling the store fully production-ready:
-
-1. PhonePe production onboarding and live payment verification.
-2. Shiprocket live order creation verification with actual pickup location.
-3. Final custom domain verification and `BASE_URL` update.
-4. Password reset email test on live domain.
-5. Full checkout test with a real low-value and high-value order.
-6. Confirm cancellation/refund business process.
-7. Decide whether GST details need to be displayed based on business registration and tax advice.
-8. Add formal privacy, shipping, cancellation, and returns text reviewed by the business owner.
-9. Add a backup/export routine for Supabase data.
-10. Add multi-admin user management if more than one person will manage operations.
-11. Add audit log screen if admin actions need traceability.
-12. Add product image optimization guidelines for consistent storefront appearance.
-13. Add analytics such as Google Analytics or privacy-friendly analytics if desired.
-14. Add SEO metadata for product pages.
-15. Add automated deployment smoke tests.
-
-## 18. Operational Best Practices
-
-Before bulk upload:
-
-- Upload images to Cloudinary first.
-- Keep a product CSV backup.
-- Use consistent product names.
-- Use consistent category names.
-- Check prices and stock before upload.
-
-After bulk upload:
-
-- Filter by newest products.
-- Check images.
-- Check spelling.
-- Remove duplicates.
-- Hide any product that should not be visible yet.
-
-Before festival or sale periods:
-
-- Export products CSV.
-- Review low stock.
-- Update descriptions and prices.
-- Test checkout.
-- Test payment.
-- Confirm Shiprocket pickup settings.
-
-Security:
-
-- Do not share admin password in chat or email.
-- Change admin password if shared accidentally.
-- Do not share Render, Supabase, Cloudinary, PhonePe, or Shiprocket credentials.
-- Keep `.env` local and private.
-
-## 19. Quick Troubleshooting
-
-### Product image is not visible
-
-Check product image URL, direct Cloudinary URL, product live status, category filter, and browser cache.
-
-### Product appears twice
-
-Likely duplicate CSV upload. Use **Remove** for the accidental duplicate.
-
-### Product not visible on shop page
-
-Check product status, selected category filter, and whether the product is hidden.
-
-### Admin login fails
-
-Check username/password, Render environment variables, Supabase connectivity, and whether the admin user exists in `admin_users`.
-
-### Password reset email does not arrive
-
-Check `EMAIL_USER`, `EMAIL_PASS`, `BASE_URL`, Gmail app password settings if Gmail is used, and spam folder.
-
-### Cloudinary upload falls back to local
-
-Check `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, Render environment variables, and whether the service redeployed.
-
-### Supabase connection fails
-
-Use Supabase pooler connection string, not a direct IPv6-only host if Render cannot reach it.
-
-Recommended host:
-
-```text
-aws-0-ap-south-1.pooler.supabase.com
+```mermaid
+mindmap
+  root((Nika Arts Studio))
+    Storefront
+      Home
+      Shop
+      Product detail
+      Cart
+      Checkout
+      Order tracking
+    Customer
+      Register
+      Login
+      Logout
+      Password reset
+      Password change
+    Admin
+      Login
+      Dashboard
+      Inventory
+      CMS
+      Settings
+    Integrations
+      Supabase
+      Cloudinary
+      PhonePe routes
+      Shiprocket routes
+      Email reset
+    Deployment
+      GitHub
+      Render
+      GoDaddy domain
 ```
 
-Also set:
+## 15. Pending Work
 
-```text
-PGSSLMODE=require
+| Priority | Item | Reason |
+|---|---|---|
+| High | PhonePe production verification | Real payments must be tested after onboarding |
+| High | Shiprocket live order verification | Pickup/order creation must be confirmed live |
+| High | Final domain + `BASE_URL` | Needed for correct reset links and callbacks |
+| High | Password reset live test | Confirms email and domain setup |
+| Medium | Policy page final wording | Business/legal clarity |
+| Medium | Supabase backup/export routine | Recovery safety |
+| Medium | GST display decision | Depends on registration/tax advice |
+| Later | Multi-admin roles | Useful when more operators join |
+| Later | Admin audit log screen | Useful for traceability |
+| Later | Product SEO metadata | Better search visibility |
+
+## 16. Admin Routine
+
+```mermaid
+flowchart TD
+  Daily["Daily"] --> Orders["Check orders"]
+  Daily --> LowStock["Check low stock"]
+  Daily --> Status["Update fulfillment/logistics"]
+
+  ProductDay["When adding products"] --> UploadImages["Upload images"]
+  ProductDay --> AddProducts["Add manually or CSV"]
+  ProductDay --> ReviewShop["Review /shop"]
+  ProductDay --> RemoveDupes["Remove duplicates"]
+
+  Weekly["Weekly"] --> ExportProducts["Export products CSV"]
+  Weekly --> ExportOrders["Export orders CSV"]
+  Weekly --> HiddenReview["Review hidden products"]
+
+  Monthly["Monthly"] --> Policies["Review policies"]
+  Monthly --> Security["Review admin password/access"]
+  Monthly --> Integrations["Check payment/logistics reports"]
 ```
 
-## 20. Recommended Admin Routine
+## 17. Troubleshooting Quick Matrix
 
-Daily:
+| Problem | Check first | Likely fix |
+|---|---|---|
+| Product image missing | Image URL opens directly? | Re-upload image or update product image |
+| Product duplicated | CSV uploaded twice? | Use **Remove** on duplicate |
+| Product not on shop | Product hidden? Category filter active? | Edit status to Live |
+| Admin login fails | Password, Supabase, env vars | Reset/seed admin or check DB |
+| Reset email missing | `EMAIL_USER`, `EMAIL_PASS`, `BASE_URL` | Fix env and redeploy |
+| Cloudinary not active | `CLOUDINARY_*` env vars | Add vars and redeploy |
+| Supabase connection fails | Pooler URL and SSL | Use pooler host and `PGSSLMODE=require` |
+| Payment callback wrong | `BASE_URL`, PhonePe env | Fix live URL and env |
 
-- Check new orders.
-- Update fulfillment/logistics status.
-- Check low stock.
+## 18. Security Reminders
 
-When adding products:
+```mermaid
+flowchart LR
+  Secrets["Secrets"] --> Env["Keep in Render/.env only"]
+  Env --> NoGit["Never commit to GitHub"]
+  AdminPass["Admin password"] --> Rotate["Rotate if shared"]
+  Access["Supabase/Cloudinary/PhonePe/Shiprocket"] --> Limit["Give access only to required people"]
+```
 
-- Upload images.
-- Add product or CSV upload.
-- Review product display on `/shop`.
-- Test one product detail page.
+Keep private:
 
-Weekly:
+- `.env`
+- Supabase database URL/password
+- Cloudinary API secret
+- PhonePe salt key
+- Shiprocket password
+- Gmail app password
+- Admin password
 
-- Export products CSV.
-- Export orders CSV.
-- Review hidden/duplicate products.
-- Check Cloudinary storage usage.
+## 19. Full Workflow Snapshot
 
-Monthly:
+```mermaid
+flowchart TD
+  Admin["Admin adds product"] --> Image["Upload image to Cloudinary"]
+  Image --> Product["Save product in Supabase"]
+  Product --> Customer["Customer sees product on /shop"]
+  Customer --> Cart["Adds to cart"]
+  Cart --> Checkout["Checkout calculates shipping"]
+  Checkout --> Payment["PhonePe payment"]
+  Payment --> Order["Order saved/updated in Supabase"]
+  Order --> Logistics["Shiprocket order/tracking"]
+  Logistics --> Status["Admin updates status"]
+  Status --> Tracking["Customer tracks order"]
+```
 
-- Change admin password if needed.
-- Review policy pages.
-- Review pending integrations and payment/logistics reports.
+That is the core business loop of the site.
