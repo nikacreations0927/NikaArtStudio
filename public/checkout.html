@@ -137,20 +137,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : rupees(shipping);
   document.getElementById('co-total').textContent = rupees(total);
   document.getElementById('shipping-policy-note').textContent = shippingPolicyText();
+  await loadPaymentConfigForTotal(total);
   renderManualUpiDetails(total);
 });
+
+async function loadPaymentConfigForTotal(total) {
+  if (!Number.isFinite(Number(total)) || Number(total) <= 0) return;
+  try {
+    const res = await fetch(`/api/config/store?amount=${encodeURIComponent(Number(total).toFixed(2))}`);
+    const data = await res.json();
+    if (data.success && data.config?.payment) {
+      STORE_CONFIG = {
+        ...(STORE_CONFIG || {}),
+        payment: data.config.payment
+      };
+    }
+  } catch (err) {
+    console.error('Failed to load payment QR:', err);
+  }
+}
 
 function renderManualUpiDetails(total) {
   const payment = STORE_CONFIG?.payment || {};
   const holder = document.getElementById('upi-payment-details');
   const upiId = payment.upiId || '';
   const payeeName = payment.upiPayeeName || 'Nika Arts Studio';
-  const upiUrl = upiId
+  const amountUpiUrl = upiId
     ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(total)}&cu=INR&tn=${encodeURIComponent('Nika Arts Studio order')}`
     : '';
+  const upiUrl = amountUpiUrl || payment.upiIntentUrl || '';
+  const qrSrc = payment.upiQrImage || '';
 
   holder.innerHTML = `
-    ${payment.upiQrImage ? `<img class="upi-qr-image" src="${escapeHtml(payment.upiQrImage)}" alt="UPI QR code" />` : ''}
+    <div class="upi-qr-section">
+      <p class="upi-scan-title">Scan and pay</p>
+      ${qrSrc
+        ? `<img class="upi-qr-image" src="${escapeHtml(qrSrc)}" alt="Scan this UPI QR code to pay ${escapeHtml(payeeName)}" />`
+        : `<div class="upi-qr-placeholder">UPI QR will appear after UPI ID is configured.</div>`}
+    </div>
     <div class="upi-detail-grid">
       <span>Payee</span><strong>${escapeHtml(payeeName)}</strong>
       <span>UPI ID</span><strong>${upiId ? escapeHtml(upiId) : 'Not configured'}</strong>

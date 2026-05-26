@@ -337,7 +337,7 @@ flowchart TD
   Env --> Admin["Admin<br/>ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SESSION_HOURS"]
   Env --> Email["Email<br/>EMAIL_USER, EMAIL_PASS"]
   Env --> Cloudinary["Cloudinary<br/>CLOUDINARY_*"]
-  Env --> Payment["Manual UPI<br/>UPI_ID, UPI_PAYEE_NAME, UPI_QR_IMAGE_URL"]
+  Env --> Payment["Manual UPI<br/>UPI_ID, UPI_PAYEE_NAME"]
   Env --> Shipping["Shiprocket<br/>SHIPROCKET_*"]
 ```
 
@@ -349,7 +349,7 @@ Important production values:
 | Admin | `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_HOURS` |
 | Email | `EMAIL_USER`, `EMAIL_PASS` |
 | Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
-| Manual UPI | `UPI_ID`, `UPI_PAYEE_NAME`, `UPI_QR_IMAGE_URL` |
+| Manual UPI | `UPI_ID`, `UPI_PAYEE_NAME`; optional `UPI_QR_IMAGE_URL` |
 | Shiprocket | `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_PICKUP_LOCATION`, `SHIPROCKET_PICKUP_PINCODE` |
 
 Never commit `.env`.
@@ -471,7 +471,7 @@ flowchart TD
 | Reset email missing | `EMAIL_USER`, `EMAIL_PASS`, `BASE_URL` | Fix env and redeploy |
 | Cloudinary not active | `CLOUDINARY_*` env vars | Add vars and redeploy |
 | Supabase connection fails | Pooler URL and SSL | Use pooler host and `PGSSLMODE=require` |
-| UPI details missing on checkout | `UPI_ID`, `UPI_PAYEE_NAME`, `UPI_QR_IMAGE_URL` | Add env vars in Render and redeploy |
+| UPI details missing on checkout | `UPI_ID`, `UPI_PAYEE_NAME` | Add env vars in Render and redeploy |
 
 ## 18. Security Reminders
 

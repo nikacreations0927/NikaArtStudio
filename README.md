@@ -234,10 +234,10 @@ When these values are present, product and site image uploads use Cloudinary. If
 ```bash
 UPI_ID=your-upi-id@bank
 UPI_PAYEE_NAME=Nika Arts Studio
-UPI_QR_IMAGE_URL=https://res.cloudinary.com/your-cloud/image/upload/your-upi-qr.png
+UPI_QR_IMAGE_URL=
 ```
 
-Checkout shows these values to the customer. The customer pays manually, enters the UPI transaction/reference ID, and the admin verifies it from the dashboard before the order is marked paid.
+Checkout shows these values to the customer and generates a scannable UPI QR code from `UPI_ID`. `UPI_QR_IMAGE_URL` is optional; use it only if you want to show a custom QR image from Cloudinary instead of the generated QR. The customer pays manually, enters the UPI transaction/reference ID, and the admin verifies it from the dashboard before the order is marked paid.
 
 PhonePe gateway credentials are intentionally not required right now. Add them only later after PhonePe business onboarding is approved.
 
