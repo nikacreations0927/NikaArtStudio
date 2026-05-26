@@ -2,6 +2,7 @@
 const express = require('express');
 const axios   = require('axios');
 const { db, recordLogistics } = require('../db');
+const { requireAdmin } = require('../middleware/adminAuth');
 const asyncHandler = require('../middleware/asyncHandler');
 
 const router  = express.Router();
@@ -77,7 +78,7 @@ async function createOrderFromPayment(orderData) {
   return response.data;
 }
 
-router.get('/track/:orderId', asyncHandler(async (req, res) => {
+router.get('/track/:orderId', requireAdmin, asyncHandler(async (req, res) => {
   const token = await getToken();
   const response = await axios.get(`${SHIPROCKET_BASE}/orders/show/${req.params.orderId}`, { headers: { Authorization: `Bearer ${token}` } });
   res.json({ success: true, data: response.data });

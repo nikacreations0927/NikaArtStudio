@@ -68,8 +68,7 @@ router.get('/status/:txnId', asyncHandler(async (req, res) => {
   res.json({
     success: true,
     status: order.paymentStatus,
-    manual: order.paymentProvider === 'Manual UPI',
-    order
+    manual: order.paymentProvider === 'Manual UPI'
   });
 }));
 

@@ -65,7 +65,13 @@ async function getAdminFromSession(req) {
 
 async function isAuthorized(req) {
   const apiKey = process.env.ADMIN_API_KEY;
-  if (apiKey && req.headers['x-admin-key'] === apiKey) {
+  const submittedApiKey = String(req.headers['x-admin-key'] || '');
+  const hasMatchingApiKey = apiKey
+    && submittedApiKey
+    && Buffer.byteLength(submittedApiKey) === Buffer.byteLength(apiKey)
+    && crypto.timingSafeEqual(Buffer.from(submittedApiKey), Buffer.from(apiKey));
+
+  if (hasMatchingApiKey) {
     req.admin = { id: 'api-key', username: 'api-key', role: 'automation' };
     return true;
   }

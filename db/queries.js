@@ -221,13 +221,70 @@ function defaultSiteContent() {
   };
 }
 
+function textValue(value, fallback = '') {
+  return String(value === undefined || value === null ? fallback : value);
+}
+
+function sanitizeLimitedHtml(value) {
+  return textValue(value)
+    .replace(/<\s*br\s*\/?\s*>/gi, '[[BR]]')
+    .replace(/<\s*em\s*>/gi, '[[EM]]')
+    .replace(/<\s*\/\s*em\s*>/gi, '[[/EM]]')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\[\[BR\]\]/g, '<br>')
+    .replace(/\[\[EM\]\]/g, '<em>')
+    .replace(/\[\[\/EM\]\]/g, '</em>');
+}
+
+function safeAssetUrl(value, fallback = '') {
+  const url = textValue(value).trim();
+  if (!url) return fallback;
+  if (/^images\/[a-z0-9/_.,%+-]+\.(jpe?g|png|webp)$/i.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:' && parsed.hostname.endsWith('res.cloudinary.com')) return url;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function safeEmail(value, fallback = '') {
+  const email = textValue(value).trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : fallback;
+}
+
+function safePhoneLink(value, fallback = '') {
+  const phone = textValue(value).trim();
+  return /^\+?[0-9]{7,15}$/.test(phone) ? phone : fallback;
+}
+
 function normalizeSiteContent(contentObj = {}) {
   const defaults = defaultSiteContent();
   return {
-    hero: { ...defaults.hero, ...(contentObj.hero || {}) },
-    about: { ...defaults.about, ...(contentObj.about || {}) },
-    contact: { ...defaults.contact, ...(contentObj.contact || {}) },
-    assets: { ...defaults.assets, ...(contentObj.assets || {}) }
+    hero: {
+      eyebrow: textValue(contentObj.hero?.eyebrow, defaults.hero.eyebrow),
+      title: sanitizeLimitedHtml(contentObj.hero?.title || defaults.hero.title),
+      subtitle: textValue(contentObj.hero?.subtitle, defaults.hero.subtitle)
+    },
+    about: {
+      eyebrow: textValue(contentObj.about?.eyebrow, defaults.about.eyebrow),
+      title: textValue(contentObj.about?.title, defaults.about.title),
+      paragraph1: textValue(contentObj.about?.paragraph1, defaults.about.paragraph1),
+      paragraph2: textValue(contentObj.about?.paragraph2, defaults.about.paragraph2)
+    },
+    contact: {
+      title: textValue(contentObj.contact?.title, defaults.contact.title),
+      description: textValue(contentObj.contact?.description, defaults.contact.description),
+      email: safeEmail(contentObj.contact?.email, defaults.contact.email),
+      phoneDisplay: textValue(contentObj.contact?.phoneDisplay, defaults.contact.phoneDisplay),
+      phoneLink: safePhoneLink(contentObj.contact?.phoneLink, defaults.contact.phoneLink)
+    },
+    assets: {
+      logoImage: safeAssetUrl(contentObj.assets?.logoImage, defaults.assets.logoImage),
+      heroImage: safeAssetUrl(contentObj.assets?.heroImage, defaults.assets.heroImage),
+      artistImage: safeAssetUrl(contentObj.assets?.artistImage, defaults.assets.artistImage)
+    }
   };
 }
 

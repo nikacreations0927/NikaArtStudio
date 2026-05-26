@@ -89,6 +89,15 @@ router.patch('/:id/status', requireAdmin, asyncHandler(async (req, res) => {
   const { fulfillmentStatus, logisticsStatus } = req.body;
   const existing = await getOrder(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Order not found.' });
+  const allowedFulfillmentStatuses = new Set(['PENDING', 'READY_FOR_SHIPPING', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED']);
+  const allowedLogisticsStatuses = new Set(['NOT_CREATED', 'CREATED', 'PICKUP_SCHEDULED', 'IN_TRANSIT', 'DELIVERED', 'RETURNED', 'FAILED', 'CANCELLED']);
+
+  if (fulfillmentStatus !== undefined && !allowedFulfillmentStatuses.has(fulfillmentStatus)) {
+    return res.status(400).json({ success: false, message: 'Unknown fulfillment status.' });
+  }
+  if (logisticsStatus !== undefined && !allowedLogisticsStatuses.has(logisticsStatus)) {
+    return res.status(400).json({ success: false, message: 'Unknown logistics status.' });
+  }
 
   if (fulfillmentStatus === 'CANCELLED') {
     const order = await cancelPaidOrder(req.params.id, 'Cancelled from admin dashboard');

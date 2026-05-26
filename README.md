@@ -174,6 +174,7 @@ The live Render service must have these values configured.
 NODE_ENV=production
 PORT=3000
 BASE_URL=https://nikaartscreations.com
+ALLOWED_ORIGINS=https://nikaartscreations.com
 DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
 PGSSLMODE=require
 PG_POOL_MAX=5
@@ -188,11 +189,12 @@ Use the Supabase pooler connection string for Render. Avoid direct IPv6-only dat
 ADMIN_USERNAME=admin_username
 ADMIN_PASSWORD=strong_initial_password
 ADMIN_DISPLAY_NAME=Business Admin
-ADMIN_API_KEY=optional-api-key-for-scripts
+ADMIN_API_KEY=
 ADMIN_SESSION_HOURS=12
 ```
 
 `ADMIN_USERNAME` and `ADMIN_PASSWORD` seed the first admin user only when the database has no admin user yet. After that, change the password from `/admin -> Settings`.
+Leave `ADMIN_API_KEY` blank unless a trusted automation script needs admin API access. If you enable it, use a long random secret and rotate it regularly.
 
 ### Customer Auth and Email
 

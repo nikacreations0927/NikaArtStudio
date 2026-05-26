@@ -5,10 +5,15 @@ function applySiteAssets(content) {
 
   if (assets.logoImage) {
     document.querySelectorAll('.logo').forEach(logo => {
-      logo.innerHTML = `
-        <img src="${assets.logoImage}" alt="Nika Arts Studio" class="logo-image">
-        <span class="sr-only">Nika Arts Studio</span>
-      `;
+      logo.textContent = '';
+      const image = document.createElement('img');
+      image.src = assets.logoImage;
+      image.alt = 'Nika Arts Studio';
+      image.className = 'logo-image';
+      const label = document.createElement('span');
+      label.className = 'sr-only';
+      label.textContent = 'Nika Arts Studio';
+      logo.append(image, label);
     });
   }
 

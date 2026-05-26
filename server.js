@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 
 const authRoutes = require('./routes/auth');
@@ -18,7 +20,55 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.set('trust proxy', 1);
+
+function originFromUrl(value) {
+  try {
+    return value ? new URL(value).origin : '';
+  } catch {
+    return '';
+  }
+}
+
+function allowedOrigins() {
+  const configured = String(process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+  const baseOrigin = originFromUrl(process.env.BASE_URL);
+  const renderOrigin = originFromUrl(process.env.RENDER_EXTERNAL_URL);
+  const development = process.env.NODE_ENV !== 'production'
+    ? ['http://localhost:3000', 'http://127.0.0.1:3000']
+    : [];
+  return new Set([...configured, baseOrigin, renderOrigin, ...development].filter(Boolean));
+}
+
+function requireProductionEnv() {
+  if (process.env.RENDER && process.env.NODE_ENV !== 'production') {
+    throw new Error('NODE_ENV must be set to production on Render for secure cookies and production-only safeguards.');
+  }
+}
+
+requireProductionEnv();
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins().has(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  credentials: true
+}));
+app.use('/api/auth/admin/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/forgot-password', rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/payment/initiate', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/shiprocket/serviceability', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false }));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
