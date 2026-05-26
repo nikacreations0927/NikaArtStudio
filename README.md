@@ -1,6 +1,6 @@
 # Nika Arts Studio E-Commerce Website
 
-Nika Arts Studio is a full-stack e-commerce website for selling handcrafted products online. The current production flow uses GitHub for code, Render for hosting, Supabase Postgres for database storage, Cloudinary for images, PhonePe for payments, and Shiprocket for shipping/logistics.
+Nika Arts Studio is a full-stack e-commerce website for selling handcrafted products online. The current production flow uses GitHub for code, Render for hosting, Supabase Postgres for database storage, Cloudinary for images, manual UPI payment verification, and Shiprocket for shipping/logistics.
 
 For business-admin operating instructions, product upload workflows, admin privileges, troubleshooting, and pending production tasks, read:
 
@@ -17,7 +17,7 @@ For business-admin operating instructions, product upload workflows, admin privi
 | Hosting | Render Web Service | Runs the Node/Express app |
 | Source control | GitHub | Stores code and triggers Render deploys |
 | Domain | GoDaddy DNS + Render custom domain | Public website URL |
-| Payments | PhonePe | Payment initiation, callbacks, payment status |
+| Payments | Manual UPI | Customer submits UPI reference; admin verifies payment |
 | Shipping | Shiprocket | Serviceability, order creation, tracking integration |
 | Email | Nodemailer/Gmail app password | Customer password reset emails |
 
@@ -71,7 +71,8 @@ Legacy `.html` URLs redirect to clean URLs. For example, `/products.html` redire
 | Supabase Postgres migration | Done |
 | Render deployment | Done |
 | Custom domain setup | In progress / DNS dependent |
-| PhonePe production verification | Pending business onboarding |
+| Manual UPI checkout | Done |
+| PhonePe production gateway | Parked until business onboarding is approved |
 | Shiprocket live order verification | Pending live credentials and pickup setup |
 
 ## Project Structure
@@ -98,7 +99,7 @@ nika-arts-studio/
 |   |-- products.js             # Product APIs and image upload
 |   |-- categories.js           # Category APIs
 |   |-- orders.js               # Checkout/order APIs
-|   |-- payment.js              # PhonePe APIs
+|   |-- payment.js              # Manual UPI order/payment APIs
 |   |-- shiprocket.js           # Shiprocket APIs
 |   |-- content.js              # CMS/site content APIs
 |   `-- config.js               # Public config APIs
@@ -228,16 +229,17 @@ CLOUDINARY_SITE_FOLDER=nika-arts/site
 
 When these values are present, product and site image uploads use Cloudinary. If they are missing in local development, image upload can fall back to local file storage.
 
-### PhonePe
+### Manual UPI Payment
 
 ```bash
-PHONEPE_MERCHANT_ID=your_merchant_id
-PHONEPE_SALT_KEY=your_salt_key
-PHONEPE_SALT_INDEX=1
-PHONEPE_ENV=sandbox
+UPI_ID=your-upi-id@bank
+UPI_PAYEE_NAME=Nika Arts Studio
+UPI_QR_IMAGE_URL=https://res.cloudinary.com/your-cloud/image/upload/your-upi-qr.png
 ```
 
-Use `PHONEPE_ENV=production` only after PhonePe production onboarding is complete.
+Checkout shows these values to the customer. The customer pays manually, enters the UPI transaction/reference ID, and the admin verifies it from the dashboard before the order is marked paid.
+
+PhonePe gateway credentials are intentionally not required right now. Add them only later after PhonePe business onboarding is approved.
 
 ### Shiprocket
 
@@ -396,12 +398,12 @@ After each important deployment:
 9. Open `/account`.
 10. Test customer login/logout if needed.
 11. Test password reset after `BASE_URL` and email are configured.
-12. Run a payment test in the correct PhonePe environment.
+12. Place a manual UPI test order and verify it from `/admin`.
 13. Verify Shiprocket serviceability for a known pincode.
 
 ## Known Pending Production Items
 
-- Complete PhonePe production business onboarding and live payment verification.
+- Complete PhonePe production business onboarding if automatic gateway payments are needed later.
 - Complete Shiprocket live order creation verification.
 - Finalize custom domain DNS and `BASE_URL`.
 - Verify password reset emails on the live domain.

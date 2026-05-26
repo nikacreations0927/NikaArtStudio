@@ -14,7 +14,7 @@ flowchart LR
 
   API --> DB["Supabase Postgres<br/>products, orders, customers, sessions"]
   API --> Cloudinary["Cloudinary<br/>product images, logo, artist image"]
-  API --> PhonePe["PhonePe<br/>payments"]
+  API --> Payment["Manual UPI<br/>payment verification"]
   API --> Shiprocket["Shiprocket<br/>shipping and tracking"]
   API --> Email["Email service<br/>password reset"]
 
@@ -32,7 +32,7 @@ flowchart LR
 | Product images | Cloudinary | Admin panel |
 | Logo/artist image | Cloudinary | Admin CMS |
 | Domain/DNS | GoDaddy + Render | Owner/developer |
-| Payment setup | PhonePe | Business owner |
+| Payment setup | Manual UPI now; PhonePe later | Business owner |
 | Shipping setup | Shiprocket | Business owner/admin |
 
 ## 2. Customer Site Map
@@ -43,8 +43,8 @@ flowchart TD
   Shop --> Product["/product?id=PRODUCT_ID"]
   Product --> Cart["/cart"]
   Cart --> Checkout["/checkout"]
-  Checkout --> PhonePe["PhonePe payment"]
-  PhonePe --> Success["/success"]
+  Checkout --> UPI["Manual UPI payment<br/>customer submits reference"]
+  UPI --> Success["/success<br/>pending verification"]
   Success --> Track["/track-order"]
 
   Home --> Account["/account"]
@@ -208,16 +208,14 @@ flowchart TD
 stateDiagram-v2
   [*] --> Cart
   Cart --> Checkout
-  Checkout --> PaymentStarted
-  PaymentStarted --> Paid: PhonePe success
-  PaymentStarted --> Failed: PhonePe failure/cancel
+  Checkout --> UpiPendingVerification
+  UpiPendingVerification --> Paid: Admin verifies UPI reference
   Paid --> PendingFulfillment
   PendingFulfillment --> ReadyForShipping
   ReadyForShipping --> Packed
   Packed --> Shipped
   Shipped --> Delivered
   PendingFulfillment --> Cancelled
-  Failed --> [*]
   Delivered --> [*]
   Cancelled --> [*]
 ```
@@ -227,14 +225,17 @@ Admin order controls:
 | Field | Values |
 |---|---|
 | Fulfillment | `PENDING`, `READY_FOR_SHIPPING`, `PACKED`, `SHIPPED`, `DELIVERED`, `CANCELLED` |
+| Payment | `UPI_PENDING_VERIFICATION`, `PAID` |
 | Logistics | `NOT_CREATED`, `CREATED`, `PICKUP_SCHEDULED`, `IN_TRANSIT`, `DELIVERED`, `RETURNED`, `FAILED` |
 
 Admin steps:
 
 1. Open `/admin -> Dashboard & Sales`.
 2. Find order.
-3. Update fulfillment/logistics dropdown.
-4. Click **Save**.
+3. For manual UPI orders, verify the reference in your bank/UPI app.
+4. Click **Verify payment** only after money is received.
+5. Update fulfillment/logistics dropdown.
+6. Click **Save**.
 
 ## 8. Customer Account and Password Flow
 
@@ -336,7 +337,7 @@ flowchart TD
   Env --> Admin["Admin<br/>ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SESSION_HOURS"]
   Env --> Email["Email<br/>EMAIL_USER, EMAIL_PASS"]
   Env --> Cloudinary["Cloudinary<br/>CLOUDINARY_*"]
-  Env --> Payment["PhonePe<br/>PHONEPE_*"]
+  Env --> Payment["Manual UPI<br/>UPI_ID, UPI_PAYEE_NAME, UPI_QR_IMAGE_URL"]
   Env --> Shipping["Shiprocket<br/>SHIPROCKET_*"]
 ```
 
@@ -348,7 +349,7 @@ Important production values:
 | Admin | `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_HOURS` |
 | Email | `EMAIL_USER`, `EMAIL_PASS` |
 | Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
-| PhonePe | `PHONEPE_MERCHANT_ID`, `PHONEPE_SALT_KEY`, `PHONEPE_SALT_INDEX`, `PHONEPE_ENV` |
+| Manual UPI | `UPI_ID`, `UPI_PAYEE_NAME`, `UPI_QR_IMAGE_URL` |
 | Shiprocket | `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_PICKUP_LOCATION`, `SHIPROCKET_PICKUP_PINCODE` |
 
 Never commit `.env`.
@@ -367,7 +368,7 @@ flowchart TD
   Smoke --> Customer["Customer login/logout works"]
   Smoke --> Reset["Password reset email works"]
   Smoke --> Track["Order tracking works"]
-  Smoke --> Payment["PhonePe test/live payment"]
+  Smoke --> Payment["Manual UPI test order + admin verification"]
   Smoke --> Ship["Shiprocket serviceability"]
 ```
 
@@ -413,7 +414,7 @@ mindmap
     Integrations
       Supabase
       Cloudinary
-      PhonePe routes
+      Manual UPI verification
       Shiprocket routes
       Email reset
     Deployment
@@ -426,8 +427,8 @@ mindmap
 
 | Priority | Item | Reason |
 |---|---|---|
-| High | PhonePe production verification | Real payments must be tested after onboarding |
 | High | Shiprocket live order verification | Pickup/order creation must be confirmed live |
+| Medium | PhonePe production gateway | Add later after business onboarding if automatic payments are required |
 | High | Final domain + `BASE_URL` | Needed for correct reset links and callbacks |
 | High | Password reset live test | Confirms email and domain setup |
 | Medium | Policy page final wording | Business/legal clarity |
@@ -470,7 +471,7 @@ flowchart TD
 | Reset email missing | `EMAIL_USER`, `EMAIL_PASS`, `BASE_URL` | Fix env and redeploy |
 | Cloudinary not active | `CLOUDINARY_*` env vars | Add vars and redeploy |
 | Supabase connection fails | Pooler URL and SSL | Use pooler host and `PGSSLMODE=require` |
-| Payment callback wrong | `BASE_URL`, PhonePe env | Fix live URL and env |
+| UPI details missing on checkout | `UPI_ID`, `UPI_PAYEE_NAME`, `UPI_QR_IMAGE_URL` | Add env vars in Render and redeploy |
 
 ## 18. Security Reminders
 
@@ -479,7 +480,7 @@ flowchart LR
   Secrets["Secrets"] --> Env["Keep in Render/.env only"]
   Env --> NoGit["Never commit to GitHub"]
   AdminPass["Admin password"] --> Rotate["Rotate if shared"]
-  Access["Supabase/Cloudinary/PhonePe/Shiprocket"] --> Limit["Give access only to required people"]
+  Access["Supabase/Cloudinary/Shiprocket/PhonePe later"] --> Limit["Give access only to required people"]
 ```
 
 Keep private:
@@ -487,7 +488,8 @@ Keep private:
 - `.env`
 - Supabase database URL/password
 - Cloudinary API secret
-- PhonePe salt key
+- UPI QR/payment details
+- PhonePe salt key if gateway is enabled later
 - Shiprocket password
 - Gmail app password
 - Admin password
@@ -501,8 +503,9 @@ flowchart TD
   Product --> Customer["Customer sees product on /shop"]
   Customer --> Cart["Adds to cart"]
   Cart --> Checkout["Checkout calculates shipping"]
-  Checkout --> Payment["PhonePe payment"]
-  Payment --> Order["Order saved/updated in Supabase"]
+  Checkout --> Payment["Manual UPI payment reference"]
+  Payment --> Verify["Admin verifies payment"]
+  Verify --> Order["Order marked paid in Supabase"]
   Order --> Logistics["Shiprocket order/tracking"]
   Logistics --> Status["Admin updates status"]
   Status --> Tracking["Customer tracks order"]

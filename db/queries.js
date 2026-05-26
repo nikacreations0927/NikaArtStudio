@@ -102,9 +102,17 @@ async function createOrderFromCart(cart, customer, options = {}) {
     const total = subtotal + shipping;
 
     await tx.run(`
-      INSERT INTO orders (id, customer_json, subtotal, shipping, total, payment_status, fulfillment_status, logistics_status)
-      VALUES (?, ?, ?, ?, ?, 'PENDING', 'PENDING', 'NOT_CREATED')
-    `, [orderId, JSON.stringify(customer), subtotal, shipping, total]);
+      INSERT INTO orders (id, customer_json, subtotal, shipping, total, payment_status, fulfillment_status, logistics_status, payment_provider)
+      VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'NOT_CREATED', ?)
+    `, [
+      orderId,
+      JSON.stringify(customer),
+      subtotal,
+      shipping,
+      total,
+      options.paymentStatus || 'PENDING',
+      options.paymentProvider || 'Manual UPI'
+    ]);
 
     for (const item of validatedItems) {
       await tx.run(
@@ -132,17 +140,18 @@ async function getSalesSummary() {
   return { orderCount: totals.order_count, revenue: totals.revenue, productRevenue: totals.product_revenue, shippingCollected: totals.shipping_collected, topProducts, lowStock };
 }
 
-async function recordPayment({ orderId, status, providerTransactionId = null, raw = null }) {
-  await db.run("INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json) VALUES (?, 'PhonePe', ?, ?, ?)", [orderId, providerTransactionId, status, raw ? JSON.stringify(raw) : '']);
-  await db.run(`UPDATE orders SET payment_status = ?, provider_transaction_id = COALESCE(?, provider_transaction_id), updated_at = ${nowSql} WHERE id = ?`, [status, providerTransactionId, orderId]);
+async function recordPayment({ orderId, status, providerTransactionId = null, provider = 'Manual UPI', raw = null }) {
+  await db.run("INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json) VALUES (?, ?, ?, ?, ?)", [orderId, provider, providerTransactionId, status, raw ? JSON.stringify(raw) : '']);
+  await db.run(`UPDATE orders SET payment_status = ?, payment_provider = ?, provider_transaction_id = COALESCE(?, provider_transaction_id), updated_at = ${nowSql} WHERE id = ?`, [status, provider, providerTransactionId, orderId]);
 }
 
-async function markOrderPaid(orderId, providerTransactionId = null, raw = null) {
+async function markOrderPaid(orderId, providerTransactionId = null, raw = null, options = {}) {
   const order = await getOrder(orderId);
   if (!order) return null;
+  const provider = options.provider || order.paymentProvider || 'Manual UPI';
 
   await db.transaction(async (tx) => {
-    await tx.run("INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json) VALUES (?, 'PhonePe', ?, 'PAYMENT_SUCCESS', ?)", [orderId, providerTransactionId, raw ? JSON.stringify(raw) : '']);
+    await tx.run("INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json) VALUES (?, ?, ?, 'PAYMENT_SUCCESS', ?)", [orderId, provider, providerTransactionId, raw ? JSON.stringify(raw) : '']);
     if (!['PAID', 'PAYMENT_SUCCESS'].includes(order.paymentStatus)) {
       for (const item of order.items) {
         const product = rowToProduct(await tx.get('SELECT * FROM products WHERE id = ?', [item.productId]));
@@ -152,9 +161,9 @@ async function markOrderPaid(orderId, providerTransactionId = null, raw = null) 
         await tx.run(`UPDATE products SET stock = stock - ?, updated_at = ${nowSql} WHERE id = ?`, [item.qty, item.productId]);
         await tx.run("INSERT INTO inventory_events (product_id, order_id, type, quantity_delta, note) VALUES (?, ?, 'SALE', ?, 'Stock reduced after successful payment')", [item.productId, orderId, -item.qty]);
       }
-      await tx.run(`UPDATE orders SET payment_status = 'PAID', provider_transaction_id = COALESCE(?, provider_transaction_id), fulfillment_status = 'READY_FOR_SHIPPING', updated_at = ${nowSql} WHERE id = ?`, [providerTransactionId, orderId]);
+      await tx.run(`UPDATE orders SET payment_status = 'PAID', payment_provider = ?, provider_transaction_id = COALESCE(?, provider_transaction_id), fulfillment_status = 'READY_FOR_SHIPPING', updated_at = ${nowSql} WHERE id = ?`, [provider, providerTransactionId, orderId]);
     } else {
-      await tx.run(`UPDATE orders SET payment_status = 'PAID', provider_transaction_id = COALESCE(?, provider_transaction_id), updated_at = ${nowSql} WHERE id = ?`, [providerTransactionId, orderId]);
+      await tx.run(`UPDATE orders SET payment_status = 'PAID', payment_provider = ?, provider_transaction_id = COALESCE(?, provider_transaction_id), updated_at = ${nowSql} WHERE id = ?`, [provider, providerTransactionId, orderId]);
     }
   });
 

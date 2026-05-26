@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order Confirmed — Nika Arts Studio</title>
+  <title>Order Received - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=site-assets-1" />
+  <link rel="stylesheet" href="css/style.css?v=manual-upi-1" />
 </head>
 <body>
 <header class="site-header">
@@ -21,15 +21,16 @@
 <section class="section success-section">
   <div class="success-box" id="success-box">
     <div class="success-icon">✓</div>
-    <h2>Order confirmed!</h2>
-    <p id="success-msg">Thank you for your order. We'll send a confirmation to your email shortly.</p>
+    <h2 id="success-title">Order received</h2>
+    <p id="success-msg">Thank you for your order.</p>
     <p id="order-id-display" style="color:#888; font-size:13px;"></p>
+    <div class="success-actions" id="success-actions"></div>
     <a href="/shop" class="btn-primary" style="margin-top:1.5rem">Continue shopping</a>
   </div>
   <div class="success-box" id="fail-box" style="display:none">
-    <div class="fail-icon">✕</div>
-    <h2>Payment not completed</h2>
-    <p>Your order was not placed. You have not been charged.</p>
+    <div class="fail-icon">x</div>
+    <h2>Order not found</h2>
+    <p>We could not find this order. Please try again from the cart or track order page.</p>
     <a href="/cart" class="btn-primary" style="margin-top:1.5rem">Back to cart</a>
   </div>
 </section>
@@ -42,30 +43,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   const txnId = params.get('transactionId');
 
   if (!txnId) {
-    document.getElementById('success-box').style.display = 'none';
-    document.getElementById('fail-box').style.display = 'block';
+    showFailure();
     return;
   }
 
   try {
-    const res = await fetch(`/api/payment/status/${txnId}`);
+    const res = await fetch(`/api/payment/status/${encodeURIComponent(txnId)}`);
     const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Could not verify order.');
 
-    if (data.success && data.status === 'PAYMENT_SUCCESS') {
-      document.getElementById('order-id-display').textContent = 'Order ID: ' + txnId;
-      document.querySelector('#success-box .btn-primary').insertAdjacentHTML('beforebegin', `<a href="/track-order?order=${encodeURIComponent(txnId)}" class="btn-outline" style="margin-top:1rem">Track this order</a>`);
-      // Clear cart
-      saveCart([]);
-      updateCartCount();
-    } else {
-      document.getElementById('success-box').style.display = 'none';
-      document.getElementById('fail-box').style.display = 'block';
-    }
+    const isPaid = ['PAID', 'PAYMENT_SUCCESS'].includes(data.status);
+    document.getElementById('success-title').textContent = isPaid ? 'Order confirmed!' : 'Order received!';
+    document.getElementById('success-msg').textContent = isPaid
+      ? 'Your payment has been verified and your order is confirmed.'
+      : 'Your UPI reference has been submitted. We will verify the payment and then prepare your order.';
+    document.getElementById('order-id-display').textContent = 'Order ID: ' + txnId;
+    document.getElementById('success-actions').innerHTML = `<a href="/track-order?order=${encodeURIComponent(txnId)}" class="btn-outline" style="margin-top:1rem">Track this order</a>`;
+    saveCart([]);
+    updateCartCount();
   } catch(e) {
-    document.getElementById('success-msg').textContent = 'We could not verify the payment status yet. Please keep your order ID and check again in a few minutes.';
-    document.getElementById('order-id-display').textContent = txnId ? 'Order ID: ' + txnId : '';
+    showFailure();
   }
 });
+
+function showFailure() {
+  document.getElementById('success-box').style.display = 'none';
+  document.getElementById('fail-box').style.display = 'block';
+}
 </script>
 </body>
 </html>

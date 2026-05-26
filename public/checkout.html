@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkout — Nika Arts Studio</title>
+  <title>Checkout - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=customer-auth-1" />
+  <link rel="stylesheet" href="css/style.css?v=manual-upi-1" />
 </head>
 <body>
 
@@ -28,8 +28,6 @@
 </div>
 
 <section class="section checkout-section">
-
-  <!-- LEFT: Customer details form -->
   <div class="checkout-form-col">
     <h3>Shipping details</h3>
     <form id="checkout-form" novalidate>
@@ -58,17 +56,17 @@
       <div class="form-row two-col">
         <div class="form-group">
           <label>City *</label>
-          <input type="text" id="city" required placeholder="Bengaluru" />
+          <input type="text" id="city" required placeholder="Coimbatore" />
         </div>
         <div class="form-group">
           <label>State *</label>
-          <input type="text" id="state" required placeholder="Karnataka" />
+          <input type="text" id="state" required placeholder="Tamil Nadu" />
         </div>
       </div>
       <div class="form-row two-col">
         <div class="form-group">
           <label>PIN code *</label>
-          <input type="text" id="pincode" required placeholder="560001" maxlength="6" />
+          <input type="text" id="pincode" required placeholder="641004" maxlength="6" />
           <p id="serviceability-note" class="field-note"></p>
         </div>
         <div class="form-group">
@@ -79,40 +77,42 @@
     </form>
   </div>
 
-  <!-- RIGHT: Order summary + Pay button -->
   <div class="checkout-summary-col">
     <h3>Order summary</h3>
     <div class="order-items" id="order-items"></div>
-    <div class="summary-row"><span>Subtotal</span><span id="co-subtotal">₹0</span></div>
-    <div class="summary-row"><span>Shipping</span><span id="co-shipping">₹0</span></div>
+    <div class="summary-row"><span>Subtotal</span><span id="co-subtotal">Rs. 0</span></div>
+    <div class="summary-row"><span>Shipping</span><span id="co-shipping">Rs. 0</span></div>
     <p id="shipping-policy-note" class="field-note shipping-policy-note"></p>
-    <div class="summary-row total-row"><span>Total</span><span id="co-total">₹0</span></div>
+    <div class="summary-row total-row"><span>Total</span><span id="co-total">Rs. 0</span></div>
 
-    <div class="payment-section">
-      <p class="payment-label">Pay securely via</p>
-      <div class="payment-logos">
-        <span class="pay-badge">PhonePe</span>
-        <span class="pay-badge">UPI</span>
-        <span class="pay-badge">BHIM</span>
+    <div class="payment-section manual-payment-card">
+      <p class="payment-label">Manual UPI payment</p>
+      <div id="upi-payment-details"></div>
+      <div class="form-group upi-reference-group">
+        <label>UPI transaction/reference ID *</label>
+        <input type="text" id="upi-reference" placeholder="Paste UPI reference after payment" autocomplete="off" />
+        <p class="field-note">Your order will be marked paid only after admin verifies this reference.</p>
       </div>
     </div>
 
-    <button class="btn-primary full-width" id="pay-btn" onclick="initiatePayment()">
-      Pay now with PhonePe / UPI
+    <button class="btn-primary full-width" id="pay-btn" onclick="submitManualUpiOrder()">
+      Submit order for payment verification
     </button>
-    <p class="secure-note">🔒 100% secure. Powered by PhonePe payment gateway.</p>
+    <p class="secure-note">No card or UPI PIN is collected on this website.</p>
 
     <div id="pay-error" class="error-msg" style="display:none"></div>
   </div>
 </section>
 
 <footer class="site-footer">
-  <p>© 2025 Nika Arts Studio. All rights reserved.</p>
+  <p>(c) 2026 Nika Arts Studio. All rights reserved.</p>
 </footer>
 
 <script src="js/site-assets.js?v=site-assets-1"></script>
 <script src="js/cart.js"></script>
 <script>
+let CHECKOUT_TOTAL = 0;
+
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await loadProducts();
@@ -126,24 +126,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   const orderItems = document.getElementById('order-items');
   orderItems.innerHTML = cart.map(item => `
     <div class="order-item-row">
-      <span>${item.name} × ${item.qty}</span>
-      <span>₹${(item.price * item.qty).toLocaleString('en-IN')}</span>
+      <span>${escapeHtml(item.name)} x ${item.qty}</span>
+      <span>${rupees(item.price * item.qty)}</span>
     </div>
   `).join('');
 
   const { subtotal, shipping, total } = calculateCartTotals(cart);
-  document.getElementById('co-subtotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
-  document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : '₹' + shipping;
-  document.getElementById('co-total').textContent = '₹' + total.toLocaleString('en-IN');
+  CHECKOUT_TOTAL = total;
+  document.getElementById('co-subtotal').textContent = rupees(subtotal);
+  document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : rupees(shipping);
+  document.getElementById('co-total').textContent = rupees(total);
   document.getElementById('shipping-policy-note').textContent = shippingPolicyText();
+  renderManualUpiDetails(total);
 });
 
-async function initiatePayment() {
-  const btn = document.getElementById('pay-btn');
+function renderManualUpiDetails(total) {
+  const payment = STORE_CONFIG?.payment || {};
+  const holder = document.getElementById('upi-payment-details');
+  const upiId = payment.upiId || '';
+  const payeeName = payment.upiPayeeName || 'Nika Arts Studio';
+  const upiUrl = upiId
+    ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(total)}&cu=INR&tn=${encodeURIComponent('Nika Arts Studio order')}`
+    : '';
+
+  holder.innerHTML = `
+    ${payment.upiQrImage ? `<img class="upi-qr-image" src="${escapeHtml(payment.upiQrImage)}" alt="UPI QR code" />` : ''}
+    <div class="upi-detail-grid">
+      <span>Payee</span><strong>${escapeHtml(payeeName)}</strong>
+      <span>UPI ID</span><strong>${upiId ? escapeHtml(upiId) : 'Not configured'}</strong>
+      <span>Amount</span><strong>${rupees(total)}</strong>
+    </div>
+    <div class="upi-actions">
+      ${upiId ? `<button type="button" class="btn-outline" onclick="copyUpiId()">Copy UPI ID</button>` : ''}
+      ${upiUrl ? `<a class="btn-outline" href="${upiUrl}">Open UPI app</a>` : ''}
+    </div>
+  `;
+}
+
+async function copyUpiId() {
+  const upiId = STORE_CONFIG?.payment?.upiId || '';
+  if (!upiId) return;
+  await navigator.clipboard.writeText(upiId);
+  const errDiv = document.getElementById('pay-error');
+  errDiv.textContent = 'UPI ID copied.';
+  errDiv.style.display = 'block';
+  errDiv.className = 'admin-message';
+  setTimeout(() => {
+    errDiv.style.display = 'none';
+    errDiv.className = 'error-msg';
+  }, 2000);
+}
+
+function validateCheckoutForm() {
   const errDiv = document.getElementById('pay-error');
   errDiv.style.display = 'none';
 
-  // Validate form
   const fields = ['firstName','lastName','email','phone','address','city','state','pincode'];
   for (const f of fields) {
     const el = document.getElementById(f);
@@ -151,25 +188,38 @@ async function initiatePayment() {
       el.focus();
       errDiv.textContent = 'Please fill in all required fields.';
       errDiv.style.display = 'block';
-      return;
+      return false;
     }
   }
-  if (!/^\d{10}$/.test(document.getElementById('phone').value)) {
+  if (!/^\d{10}$/.test(document.getElementById('phone').value.trim())) {
     errDiv.textContent = 'Please enter a valid 10-digit phone number.';
     errDiv.style.display = 'block';
-    return;
+    return false;
   }
-  if (!/^\d{6}$/.test(document.getElementById('pincode').value)) {
+  if (!/^\d{6}$/.test(document.getElementById('pincode').value.trim())) {
     errDiv.textContent = 'Please enter a valid 6-digit PIN code.';
     errDiv.style.display = 'block';
-    return;
+    return false;
   }
+  if (!document.getElementById('upi-reference').value.trim()) {
+    document.getElementById('upi-reference').focus();
+    errDiv.textContent = 'Please enter the UPI transaction/reference ID after payment.';
+    errDiv.style.display = 'block';
+    return false;
+  }
+  return true;
+}
 
-  btn.disabled = true;
-  btn.textContent = 'Redirecting to PhonePe...';
+async function submitManualUpiOrder() {
+  if (!validateCheckoutForm()) return;
 
+  const btn = document.getElementById('pay-btn');
+  const errDiv = document.getElementById('pay-error');
   const cart = getCart();
   const { shipping, total } = calculateCartTotals(cart);
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting order...';
 
   const orderData = {
     customer: {
@@ -184,7 +234,8 @@ async function initiatePayment() {
     },
     items: cart,
     total,
-    shipping
+    shipping,
+    upiReference: document.getElementById('upi-reference').value.trim()
   };
 
   try {
@@ -195,16 +246,14 @@ async function initiatePayment() {
     });
     const data = await res.json();
 
-    if (data.success && data.redirectUrl) {
-      // Save order info locally before redirect
-      localStorage.setItem('pendingOrder', JSON.stringify(orderData));
-      window.location.href = data.redirectUrl;
-    } else {
-      throw new Error(data.message || 'Payment initiation failed');
-    }
+    if (!res.ok || !data.success) throw new Error(data.message || 'Order submission failed');
+
+    saveCart([]);
+    updateCartCount();
+    window.location.href = `/success?transactionId=${encodeURIComponent(data.orderId)}&manual=1`;
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = 'Pay now with PhonePe / UPI';
+    btn.textContent = 'Submit order for payment verification';
     errDiv.textContent = 'Error: ' + err.message + '. Please try again.';
     errDiv.style.display = 'block';
   }
@@ -237,7 +286,7 @@ async function checkServiceability() {
     const res = await fetch(`/api/shiprocket/serviceability?pincode=${encodeURIComponent(pincode)}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Serviceability check failed');
-    note.textContent = 'Delivery check completed. Available courier options will be selected after payment.';
+    note.textContent = 'Delivery check completed. Courier will be selected after payment verification.';
   } catch (err) {
     note.textContent = 'Delivery check unavailable right now. You can still continue checkout.';
   }

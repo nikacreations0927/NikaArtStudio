@@ -97,12 +97,14 @@ async function main() {
         state: 'Tamil Nadu',
         pincode: '641004'
       },
-      cart: [{ productId: product.id, qty: 1 }]
+      cart: [{ productId: product.id, qty: 1 }],
+      upiReference: `SMOKE-UPI-${runId}`
     })
   });
 
-  assert([200, 500, 502].includes(payment.response.status), `Unexpected PhonePe status: ${payment.response.status}`);
-  console.log('PhonePe initiation response:', payment.response.status, payment.body?.message || payment.body?.redirectUrl || payment.body?.raw?.message || 'received');
+  assert(payment.response.ok, `Manual UPI order failed: ${payment.body?.message || payment.response.status}`);
+  assert(payment.body?.status === 'UPI_PENDING_VERIFICATION', 'Manual UPI order did not enter pending verification state');
+  console.log('Manual UPI order response:', payment.response.status, payment.body?.orderId, payment.body?.status);
   console.log('Smoke e2e completed.');
 }
 

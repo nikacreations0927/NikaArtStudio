@@ -182,7 +182,7 @@ async function initSchema() {
       payment_status TEXT NOT NULL DEFAULT 'PENDING',
       fulfillment_status TEXT NOT NULL DEFAULT 'PENDING',
       logistics_status TEXT NOT NULL DEFAULT 'NOT_CREATED',
-      payment_provider TEXT DEFAULT 'PhonePe',
+      payment_provider TEXT DEFAULT 'Manual UPI',
       provider_transaction_id TEXT,
       shiprocket_order_id TEXT,
       shiprocket_shipment_id TEXT,
@@ -213,7 +213,7 @@ async function initSchema() {
     CREATE TABLE IF NOT EXISTS payments (
       id SERIAL PRIMARY KEY,
       order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      provider TEXT NOT NULL DEFAULT 'PhonePe',
+      provider TEXT NOT NULL DEFAULT 'Manual UPI',
       provider_transaction_id TEXT,
       status TEXT NOT NULL,
       raw_json TEXT DEFAULT '',

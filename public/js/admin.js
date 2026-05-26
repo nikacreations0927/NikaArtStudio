@@ -280,7 +280,11 @@ async function loadOrders() {
     <tr data-order="${order.id}">
       <td><strong>${order.id}</strong><br /><small>${order.customer.firstName || ''} ${order.customer.lastName || ''}</small></td>
       <td>${rupees(order.total)}</td>
-      <td>${order.paymentStatus}</td>
+      <td>
+        <strong>${escapeHtml(order.paymentStatus)}</strong>
+        ${order.providerTransactionId ? `<br /><small>Ref: ${escapeHtml(order.providerTransactionId)}</small>` : ''}
+        ${order.paymentProvider ? `<br /><small>${escapeHtml(order.paymentProvider)}</small>` : ''}
+      </td>
       <td>
         <select class="fulfillment-status">
           ${['PENDING','READY_FOR_SHIPPING','PACKED','SHIPPED','DELIVERED','CANCELLED'].map(status => `<option value="${status}" ${order.fulfillmentStatus === status ? 'selected' : ''}>${status}</option>`).join('')}
@@ -291,7 +295,10 @@ async function loadOrders() {
           ${['NOT_CREATED','CREATED','PICKUP_SCHEDULED','IN_TRANSIT','DELIVERED','RETURNED','FAILED'].map(status => `<option value="${status}" ${order.logisticsStatus === status ? 'selected' : ''}>${status}</option>`).join('')}
         </select>
       </td>
-      <td><button class="btn-outline" onclick="saveOrderStatus('${order.id}')">Save</button></td>
+      <td class="order-row-actions">
+        ${order.paymentStatus === 'UPI_PENDING_VERIFICATION' ? `<button class="btn-outline small-btn" onclick="verifyManualPayment('${order.id}')">Verify payment</button>` : ''}
+        <button class="btn-outline small-btn" onclick="saveOrderStatus('${order.id}')">Save</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -328,6 +335,25 @@ async function saveOrderStatus(id) {
     })
   });
   showMessage('Order status updated.');
+}
+
+async function verifyManualPayment(id) {
+  const order = ADMIN_ORDERS.find(item => item.id === id);
+  const reference = order?.providerTransactionId || '';
+  const confirmed = await showAdminConfirm({
+    title: 'Verify UPI payment?',
+    body: `Mark order ${id} as paid${reference ? ` using reference ${reference}` : ''}? This will reduce stock and move the order to ready for shipping.`,
+    confirmText: 'Verify payment'
+  });
+  if (!confirmed) return;
+
+  const data = await api(`/api/orders/${id}/payment`, {
+    method: 'PATCH',
+    body: JSON.stringify({ providerTransactionId: reference })
+  });
+  showMessage(data.message || 'Payment verified.');
+  await loadStats();
+  await loadOrders();
 }
 
 // --- Inventory Logic ---
