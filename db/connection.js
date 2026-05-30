@@ -31,6 +31,10 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 
+pool.on('error', (err) => {
+  console.error('Postgres idle client error:', err.message);
+});
+
 const dataDir = path.join(__dirname, '..', 'data');
 const cloudinaryProductCsvPath = path.join(dataDir, 'keychain-cloudinary-products.csv');
 const nowSql = 'CURRENT_TIMESTAMP';

@@ -413,7 +413,7 @@ async function loadOrders() {
       </td>
       <td>
         <select class="logistics-status">
-          ${['NOT_CREATED','CREATED','PICKUP_SCHEDULED','IN_TRANSIT','DELIVERED','RETURNED','FAILED'].map(status => `<option value="${status}" ${order.logisticsStatus === status ? 'selected' : ''}>${status}</option>`).join('')}
+          ${['NOT_CREATED','CREATED','PICKUP_SCHEDULED','IN_TRANSIT','DELIVERED','RETURNED','FAILED','CANCELLED'].map(status => `<option value="${status}" ${order.logisticsStatus === status ? 'selected' : ''}>${status}</option>`).join('')}
         </select>
       </td>
       <td class="order-row-actions">

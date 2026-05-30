@@ -1,6 +1,6 @@
 const express = require('express');
 const { sendCustomerReceipt } = require('../services/email');
-const { cancelPaidOrder, getOrder, getSalesDashboard, getSalesSummary, listOrders, markOrderPaid, nowSql, db } = require('../db');
+const { cancelPaidOrder, getOrder, getSalesDashboard, getSalesSummary, listOrders, markOrderPaid, nowSql, db, recordLogistics } = require('../db');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { optionalCustomer } = require('../middleware/customerAuth');
 const asyncHandler = require('../middleware/asyncHandler');
@@ -116,6 +116,20 @@ router.patch('/:id/status', requireAdmin, asyncHandler(async (req, res) => {
         updated_at = ${nowSql}
     WHERE id = ?
   `, [fulfillmentStatus, logisticsStatus, req.params.id]);
+
+  if (logisticsStatus && logisticsStatus !== existing.logisticsStatus) {
+    await recordLogistics({
+      orderId: req.params.id,
+      status: logisticsStatus,
+      trackingId: existing.shiprocketShipmentId || existing.shiprocketOrderId || null,
+      raw: {
+        source: 'admin',
+        updatedBy: req.admin?.username || 'admin',
+        previousStatus: existing.logisticsStatus,
+        newStatus: logisticsStatus
+      }
+    });
+  }
 
   res.json({ success: true, message: 'Status updated', order: await getOrder(req.params.id) });
 }));

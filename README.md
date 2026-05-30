@@ -246,13 +246,14 @@ PhonePe gateway credentials are intentionally not required right now. Add them o
 ### Shiprocket
 
 ```bash
+SHIPROCKET_MODE=mock
 SHIPROCKET_EMAIL=your_shiprocket_email
 SHIPROCKET_PASSWORD=your_shiprocket_password
 SHIPROCKET_PICKUP_LOCATION=Primary
 SHIPROCKET_PICKUP_PINCODE=641004
 ```
 
-`SHIPROCKET_PICKUP_LOCATION` must exactly match the pickup location configured in Shiprocket.
+Use `SHIPROCKET_MODE=mock` in dev/test Render so serviceability, order creation, and tracking return safe mock responses. Use `SHIPROCKET_MODE=live` only in production with real Shiprocket credentials. `SHIPROCKET_PICKUP_LOCATION` must exactly match the pickup location configured in Shiprocket.
 
 ## Admin Operations
 
