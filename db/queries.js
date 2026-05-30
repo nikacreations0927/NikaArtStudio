@@ -133,11 +133,77 @@ async function listOrders({ limit = 100 } = {}) {
 }
 
 async function getSalesSummary() {
-  const paidWhere = "payment_status IN ('PAID', 'PAYMENT_SUCCESS')";
+  const paidWhere = "payment_status IN ('PAID', 'PAYMENT_SUCCESS') AND fulfillment_status <> 'CANCELLED'";
   const totals = await db.get(`SELECT COUNT(*)::int AS order_count, COALESCE(SUM(total), 0)::int AS revenue, COALESCE(SUM(subtotal), 0)::int AS product_revenue, COALESCE(SUM(shipping), 0)::int AS shipping_collected FROM orders WHERE ${paidWhere}`);
   const topProducts = await db.all(`SELECT product_id AS "productId", name_snapshot AS name, SUM(qty)::int AS "unitsSold", SUM(line_total)::int AS revenue FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE ${paidWhere}) GROUP BY product_id, name_snapshot ORDER BY "unitsSold" DESC, revenue DESC`);
   const lowStock = (await db.all('SELECT * FROM products WHERE is_active = 1 AND stock <= 3 ORDER BY stock ASC, name ASC')).map(rowToProduct);
   return { orderCount: totals.order_count, revenue: totals.revenue, productRevenue: totals.product_revenue, shippingCollected: totals.shipping_collected, topProducts, lowStock };
+}
+
+async function getSalesDashboard() {
+  const paidWhere = "o.payment_status IN ('PAID', 'PAYMENT_SUCCESS') AND o.fulfillment_status <> 'CANCELLED'";
+  const products = (await db.all(`
+    SELECT
+      p.id,
+      p.name,
+      p.category,
+      p.stock,
+      p.price,
+      COALESCE(SUM(oi.qty) FILTER (WHERE ${paidWhere}), 0)::int AS "unitsSold",
+      COALESCE(SUM(oi.line_total) FILTER (WHERE ${paidWhere}), 0)::int AS revenue
+    FROM products p
+    LEFT JOIN order_items oi ON oi.product_id = p.id
+    LEFT JOIN orders o ON o.id = oi.order_id
+    WHERE p.is_deleted = 0
+    GROUP BY p.id, p.name, p.category, p.stock, p.price
+    ORDER BY p.name ASC
+  `)).map(row => ({
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    stock: Number(row.stock || 0),
+    price: Number(row.price || 0),
+    unitsSold: Number(row.unitsSold || 0),
+    revenue: Number(row.revenue || 0)
+  }));
+
+  const periods = {
+    daily: { trunc: 'day', since: "CURRENT_DATE - INTERVAL '29 days'", label: "TO_CHAR(bucket, 'DD Mon')" },
+    weekly: { trunc: 'week', since: "CURRENT_DATE - INTERVAL '11 weeks'", label: "TO_CHAR(bucket, 'DD Mon')" },
+    monthly: { trunc: 'month', since: "CURRENT_DATE - INTERVAL '11 months'", label: "TO_CHAR(bucket, 'Mon YYYY')" },
+    annual: { trunc: 'year', since: "CURRENT_DATE - INTERVAL '4 years'", label: "TO_CHAR(bucket, 'YYYY')" }
+  };
+
+  const timeline = {};
+  for (const [key, config] of Object.entries(periods)) {
+    timeline[key] = await db.all(`
+      WITH sales AS (
+        SELECT
+          DATE_TRUNC('${config.trunc}', o.created_at) AS bucket,
+          oi.product_id,
+          oi.name_snapshot AS product_name,
+          SUM(oi.qty)::int AS units,
+          SUM(oi.line_total)::int AS revenue
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        JOIN products p ON p.id = oi.product_id AND p.is_deleted = 0
+        WHERE ${paidWhere}
+          AND o.created_at >= ${config.since}
+        GROUP BY bucket, oi.product_id, oi.name_snapshot
+      )
+      SELECT
+        bucket::text AS bucket,
+        ${config.label} AS label,
+        product_id AS "productId",
+        product_name AS "productName",
+        units,
+        revenue
+      FROM sales
+      ORDER BY bucket ASC, product_name ASC
+    `);
+  }
+
+  return { products, timeline };
 }
 
 async function recordPayment({ orderId, status, providerTransactionId = null, provider = 'Manual UPI', raw = null }) {
@@ -308,6 +374,7 @@ module.exports = {
   getCategories,
   getCategoryByName,
   getSalesSummary,
+  getSalesDashboard,
   getOrder,
   getProduct,
   getProducts,

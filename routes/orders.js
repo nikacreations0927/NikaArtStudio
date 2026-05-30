@@ -1,6 +1,6 @@
 const express = require('express');
 const { sendCustomerReceipt } = require('../services/email');
-const { cancelPaidOrder, getOrder, getSalesSummary, listOrders, markOrderPaid, nowSql, db } = require('../db');
+const { cancelPaidOrder, getOrder, getSalesDashboard, getSalesSummary, listOrders, markOrderPaid, nowSql, db } = require('../db');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { optionalCustomer } = require('../middleware/customerAuth');
 const asyncHandler = require('../middleware/asyncHandler');
@@ -54,6 +54,11 @@ router.get('/track/:id', optionalCustomer, asyncHandler(async (req, res) => {
 router.get('/sales/summary', requireAdmin, asyncHandler(async (req, res) => {
   const summary = await getSalesSummary();
   res.json({ success: true, summary });
+}));
+
+router.get('/sales/dashboard', requireAdmin, asyncHandler(async (req, res) => {
+  const dashboard = await getSalesDashboard();
+  res.json({ success: true, dashboard });
 }));
 
 router.patch('/:id/payment', requireAdmin, asyncHandler(async (req, res) => {

@@ -18,6 +18,12 @@ const INVENTORY_STATE = {
   sort: 'newest',
   filtered: []
 };
+const SALES_DASHBOARD_STATE = {
+  products: [],
+  timeline: {},
+  selectedProductId: '',
+  period: 'daily'
+};
 
 function adminHeaders() {
   return { 'Content-Type': 'application/json' };
@@ -213,12 +219,12 @@ async function switchTab(tabId) {
 
     // 5. Load the relevant data for that specific panel
     if (tabId === 'dashboard') {
-      await loadStats();
+      await loadDashboardData();
       await loadOrders();
       
       // LIVE DASHBOARD: Auto-refresh stats and orders every 5 seconds!
       dashboardPollingInterval = setInterval(async () => {
-        await loadStats();
+        await loadDashboardData();
         await loadOrders();
       }, 5000);
 
@@ -250,27 +256,142 @@ function loadAdminData() {
 
 
 // --- Dashboard Logic ---
-async function loadStats() {
-  const data = await api('/api/orders/sales/summary');
-  const summary = data.summary;
-  document.getElementById('admin-stats').innerHTML = `
-    <div><span>Paid orders</span><strong>${summary.orderCount}</strong></div>
-    <div><span>Revenue</span><strong>${rupees(summary.revenue)}</strong></div>
-    <div><span>Product sales</span><strong>${rupees(summary.productRevenue)}</strong></div>
-    <div><span>Low stock</span><strong>${summary.lowStock.length}</strong></div>
+async function loadDashboardData() {
+  const data = await api('/api/orders/sales/dashboard');
+  SALES_DASHBOARD_STATE.products = data.dashboard.products || [];
+  SALES_DASHBOARD_STATE.timeline = data.dashboard.timeline || {};
+
+  const productSelect = document.getElementById('sales-product-select');
+  if (productSelect) {
+    const previousValue = productSelect.value || SALES_DASHBOARD_STATE.selectedProductId;
+    productSelect.innerHTML = `<option value="">All products</option>${SALES_DASHBOARD_STATE.products.map(product => `
+      <option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}</option>
+    `).join('')}`;
+    if (SALES_DASHBOARD_STATE.products.some(product => product.id === previousValue)) {
+      productSelect.value = previousValue;
+      SALES_DASHBOARD_STATE.selectedProductId = previousValue;
+    }
+  }
+
+  renderSalesSummaryCards();
+  renderSelectedProductReport();
+  renderSalesDashboardCharts();
+  renderProductSalesTable();
+}
+
+function getSelectedProduct() {
+  const select = document.getElementById('sales-product-select');
+  SALES_DASHBOARD_STATE.selectedProductId = select?.value || '';
+  return SALES_DASHBOARD_STATE.products.find(product => product.id === SALES_DASHBOARD_STATE.selectedProductId) || null;
+}
+
+function renderSalesSummaryCards() {
+  const el = document.getElementById('admin-stats');
+  if (!el) return;
+  const products = SALES_DASHBOARD_STATE.products;
+  const totalUnits = products.reduce((sum, product) => sum + product.unitsSold, 0);
+  const totalRevenue = products.reduce((sum, product) => sum + product.revenue, 0);
+  const lowStock = products.filter(product => product.stock > 0 && product.stock <= 3).length;
+  const outOfStock = products.filter(product => product.stock <= 0).length;
+
+  el.innerHTML = `
+    <div><span>Products sold</span><strong>${totalUnits}</strong></div>
+    <div><span>Total revenue</span><strong>${rupees(totalRevenue)}</strong></div>
+    <div><span>Low stock</span><strong>${lowStock}</strong></div>
+    <div><span>Out of stock</span><strong>${outOfStock}</strong></div>
   `;
-  const topProductsEl = document.getElementById('top-products-list');
-  if (topProductsEl) {
-    topProductsEl.innerHTML = summary.topProducts && summary.topProducts.length
-      ? summary.topProducts.map(item => `<p><strong>${escapeHtml(item.name)}</strong> - ${item.unitsSold} sold, ${rupees(item.revenue)}</p>`).join('')
-      : '<p>No paid product sales yet.</p>';
+}
+
+function renderSelectedProductReport() {
+  const product = getSelectedProduct();
+  const title = document.getElementById('selected-product-title');
+  const subtitle = document.getElementById('selected-product-subtitle');
+  const report = document.getElementById('selected-product-report');
+  if (!title || !subtitle || !report) return;
+
+  const source = product || {
+    name: 'All products',
+    category: 'Complete catalog',
+    unitsSold: SALES_DASHBOARD_STATE.products.reduce((sum, item) => sum + item.unitsSold, 0),
+    revenue: SALES_DASHBOARD_STATE.products.reduce((sum, item) => sum + item.revenue, 0),
+    stock: SALES_DASHBOARD_STATE.products.reduce((sum, item) => sum + item.stock, 0)
+  };
+
+  title.textContent = `${source.name} report`;
+  subtitle.textContent = source.category || '';
+  report.innerHTML = `
+    <div><span>Products sold</span><strong>${source.unitsSold}</strong></div>
+    <div><span>Total revenue</span><strong>${rupees(source.revenue)}</strong></div>
+    <div><span>Stock sold</span><strong>${source.unitsSold}</strong></div>
+    <div><span>Stock remaining</span><strong>${source.stock}</strong></div>
+  `;
+}
+
+function periodLabel(period) {
+  return ({ daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', annual: 'Annual' }[period] || 'Daily');
+}
+
+function renderSalesDashboardCharts() {
+  const periodSelect = document.getElementById('sales-period-select');
+  SALES_DASHBOARD_STATE.period = periodSelect?.value || SALES_DASHBOARD_STATE.period || 'daily';
+  const period = SALES_DASHBOARD_STATE.period;
+  const title = document.getElementById('sales-chart-title');
+  const chart = document.getElementById('sales-chart');
+  if (!chart) return;
+  if (title) title.textContent = `${periodLabel(period)} sales by product`;
+
+  const rows = SALES_DASHBOARD_STATE.timeline[period] || [];
+  const selectedProduct = getSelectedProduct();
+  const filteredRows = selectedProduct ? rows.filter(row => row.productId === selectedProduct.id) : rows;
+  if (!filteredRows.length) {
+    chart.innerHTML = '<p class="inventory-empty">No paid sales data for this view yet.</p>';
+    return;
   }
-  const lowStockEl = document.getElementById('low-stock-list');
-  if (lowStockEl) {
-    lowStockEl.innerHTML = summary.lowStock.length
-      ? summary.lowStock.map(item => `<p><strong>${escapeHtml(item.name)}</strong> - ${item.stock} left</p>`).join('')
-      : '<p>No low stock items.</p>';
+
+  const grouped = new Map();
+  for (const row of filteredRows) {
+    const key = selectedProduct ? row.label : row.productName;
+    const existing = grouped.get(key) || { label: key, units: 0, revenue: 0 };
+    existing.units += Number(row.units || 0);
+    existing.revenue += Number(row.revenue || 0);
+    grouped.set(key, existing);
   }
+  const graphRows = Array.from(grouped.values())
+    .sort((a, b) => b.units - a.units || b.revenue - a.revenue || a.label.localeCompare(b.label))
+    .slice(0, selectedProduct ? 18 : 14);
+  const maxUnits = Math.max(1, ...graphRows.map(row => row.units));
+  const maxRevenue = Math.max(1, ...graphRows.map(row => row.revenue));
+
+  chart.innerHTML = `
+    <div class="sales-chart-legend">
+      <span><i class="units"></i>Units sold</span>
+      <span><i class="revenue"></i>Revenue</span>
+    </div>
+    ${graphRows.map(row => `
+      <div class="sales-chart-row">
+        <div class="sales-chart-label" title="${escapeHtml(row.label)}">${escapeHtml(row.label)}</div>
+        <div class="sales-chart-bars">
+          <div class="sales-bar units" style="width:${Math.max(3, (row.units / maxUnits) * 100)}%"><span>${row.units}</span></div>
+          <div class="sales-bar revenue" style="width:${Math.max(3, (row.revenue / maxRevenue) * 100)}%"><span>${rupees(row.revenue)}</span></div>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function renderProductSalesTable() {
+  const body = document.getElementById('product-sales-body');
+  if (!body) return;
+  const rows = [...SALES_DASHBOARD_STATE.products].sort((a, b) => b.unitsSold - a.unitsSold || b.revenue - a.revenue || a.name.localeCompare(b.name));
+  body.innerHTML = rows.map(product => `
+    <tr>
+      <td><strong>${escapeHtml(product.name)}</strong></td>
+      <td>${escapeHtml(product.category)}</td>
+      <td>${product.unitsSold}</td>
+      <td>${rupees(product.revenue)}</td>
+      <td>${product.stock}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="inventory-empty">No products found.</td></tr>';
 }
 
 async function loadOrders() {
@@ -352,7 +473,7 @@ async function verifyManualPayment(id) {
     body: JSON.stringify({ providerTransactionId: reference })
   });
   showMessage(data.message || 'Payment verified.');
-  await loadStats();
+  await loadDashboardData();
   await loadOrders();
 }
 
