@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nika Arts Studio | All Orders</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css?v=admin-orders-1" />
+</head>
+<body data-admin-page="orders">
+<header class="site-header">
+  <a href="/" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="/shop">Shop</a>
+    <a href="/admin">Admin</a>
+  </nav>
+</header>
+
+<div class="page-hero-small">
+  <h1>All Orders</h1>
+  <p>Verify payments, update fulfillment, and manage logistics in one place.</p>
+</div>
+
+<section class="section admin-section">
+  <div class="admin-toolbar">
+    <label>Username <input type="text" id="admin-username" placeholder="Admin username" autocomplete="username" /></label>
+    <label>Password <input type="password" id="admin-password" placeholder="Admin password" autocomplete="current-password" /></label>
+    <button class="btn-primary" onclick="saveAdminLogin()">Log in</button>
+    <button class="btn-outline" onclick="clearAdminLogin()">Log out</button>
+    <span id="admin-session-status" class="admin-session-status">Checking session...</span>
+  </div>
+
+  <div id="admin-message" class="admin-message"></div>
+
+  <section class="admin-panel all-orders-panel">
+    <div class="panel-title-row">
+      <div>
+        <h3>Order operations</h3>
+        <p>All orders with the same payment and logistics controls from the dashboard.</p>
+      </div>
+      <div class="order-page-actions">
+        <a href="/admin" class="btn-outline">Back to dashboard</a>
+        <button class="btn-outline" onclick="exportOrdersCsv()">Export orders CSV</button>
+      </div>
+    </div>
+    <div class="admin-table-wrap all-orders-table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>Order</th><th>Total</th><th>Payment</th><th>Fulfillment</th><th>Logistics</th><th></th></tr></thead>
+        <tbody id="all-orders-body"></tbody>
+      </table>
+    </div>
+  </section>
+</section>
+
+<div class="admin-modal-backdrop" id="admin-confirm-modal" hidden>
+  <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title">
+    <h3 id="admin-confirm-title">Confirm action</h3>
+    <p id="admin-confirm-body">Please confirm this action.</p>
+    <div class="admin-modal-actions">
+      <button class="btn-outline" type="button" id="admin-confirm-cancel">Cancel</button>
+      <button class="btn-primary danger" type="button" id="admin-confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/admin.js?v=admin-orders-1"></script>
+</body>
+</html>

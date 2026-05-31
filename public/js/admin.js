@@ -24,6 +24,7 @@ const SALES_DASHBOARD_STATE = {
   selectedProductId: '',
   period: 'daily'
 };
+const ADMIN_PAGE_MODE = document.body?.dataset?.adminPage || 'dashboard';
 
 function adminHeaders() {
   return { 'Content-Type': 'application/json' };
@@ -43,6 +44,10 @@ function setAdminAuthState(admin) {
     if (adminContent) {
       adminContent.innerHTML = '<p style="text-align: center; color: #666; margin-top: 2rem;">Please log in to manage store operations.</p>';
     }
+    const allOrdersBody = document.getElementById('all-orders-body');
+    if (allOrdersBody) {
+      allOrdersBody.innerHTML = '<tr><td colspan="6" class="inventory-empty">Please log in to manage orders.</td></tr>';
+    }
   }
 }
 
@@ -59,7 +64,11 @@ async function saveAdminLogin() {
 
     setAdminAuthState(data.admin);
     showMessage('Logged in. Admin session is active.');
-    await switchTab('dashboard');
+    if (ADMIN_PAGE_MODE === 'orders') {
+      await loadAllOrdersPage();
+    } else {
+      await switchTab('dashboard');
+    }
   } catch (err) {
     showMessage(err.message, true);
   }
@@ -85,7 +94,11 @@ async function checkAdminSession() {
     const data = await res.json();
     if (res.ok && data.success) {
       setAdminAuthState(data.admin);
-      await switchTab('dashboard');
+      if (ADMIN_PAGE_MODE === 'orders') {
+        await loadAllOrdersPage();
+      } else {
+        await switchTab('dashboard');
+      }
       return;
     }
   } catch (err) {
@@ -264,7 +277,7 @@ async function loadDashboardData() {
   const productSelect = document.getElementById('sales-product-select');
   if (productSelect) {
     const previousValue = productSelect.value || SALES_DASHBOARD_STATE.selectedProductId;
-    productSelect.innerHTML = `<option value="">All products</option>${SALES_DASHBOARD_STATE.products.map(product => `
+    productSelect.innerHTML = `<option value="">Select a product</option>${SALES_DASHBOARD_STATE.products.map(product => `
       <option value="${escapeHtml(product.id)}">${escapeHtml(product.name)}</option>
     `).join('')}`;
     if (SALES_DASHBOARD_STATE.products.some(product => product.id === previousValue)) {
@@ -276,6 +289,7 @@ async function loadDashboardData() {
   renderSalesSummaryCards();
   renderSelectedProductReport();
   renderSalesDashboardCharts();
+  renderProductSalesChart();
   renderProductSalesTable();
 }
 
@@ -309,21 +323,25 @@ function renderSelectedProductReport() {
   const report = document.getElementById('selected-product-report');
   if (!title || !subtitle || !report) return;
 
-  const source = product || {
-    name: 'All products',
-    category: 'Complete catalog',
-    unitsSold: SALES_DASHBOARD_STATE.products.reduce((sum, item) => sum + item.unitsSold, 0),
-    revenue: SALES_DASHBOARD_STATE.products.reduce((sum, item) => sum + item.revenue, 0),
-    stock: SALES_DASHBOARD_STATE.products.reduce((sum, item) => sum + item.stock, 0)
-  };
+  if (!product) {
+    title.textContent = 'No product selected';
+    subtitle.textContent = 'Choose a product from the dropdown.';
+    report.innerHTML = `
+      <div><span>Products sold</span><strong>-</strong></div>
+      <div><span>Total revenue</span><strong>-</strong></div>
+      <div><span>Stock sold</span><strong>-</strong></div>
+      <div><span>Stock remaining</span><strong>-</strong></div>
+    `;
+    return;
+  }
 
-  title.textContent = `${source.name} report`;
-  subtitle.textContent = source.category || '';
+  title.textContent = `${product.name} report`;
+  subtitle.textContent = product.category || '';
   report.innerHTML = `
-    <div><span>Products sold</span><strong>${source.unitsSold}</strong></div>
-    <div><span>Total revenue</span><strong>${rupees(source.revenue)}</strong></div>
-    <div><span>Stock sold</span><strong>${source.unitsSold}</strong></div>
-    <div><span>Stock remaining</span><strong>${source.stock}</strong></div>
+    <div><span>Products sold</span><strong>${product.unitsSold}</strong></div>
+    <div><span>Total revenue</span><strong>${rupees(product.revenue)}</strong></div>
+    <div><span>Stock sold</span><strong>${product.unitsSold}</strong></div>
+    <div><span>Stock remaining</span><strong>${product.stock}</strong></div>
   `;
 }
 
@@ -341,16 +359,15 @@ function renderSalesDashboardCharts() {
   if (title) title.textContent = `${periodLabel(period)} sales by product`;
 
   const rows = SALES_DASHBOARD_STATE.timeline[period] || [];
-  const selectedProduct = getSelectedProduct();
-  const filteredRows = selectedProduct ? rows.filter(row => row.productId === selectedProduct.id) : rows;
-  if (!filteredRows.length) {
+  if (!rows.length) {
     chart.innerHTML = '<p class="inventory-empty">No paid sales data for this view yet.</p>';
+    renderProductSalesChart();
     return;
   }
 
   const grouped = new Map();
-  for (const row of filteredRows) {
-    const key = selectedProduct ? row.label : row.productName;
+  for (const row of rows) {
+    const key = row.productName;
     const existing = grouped.get(key) || { label: key, units: 0, revenue: 0 };
     existing.units += Number(row.units || 0);
     existing.revenue += Number(row.revenue || 0);
@@ -358,7 +375,7 @@ function renderSalesDashboardCharts() {
   }
   const graphRows = Array.from(grouped.values())
     .sort((a, b) => b.units - a.units || b.revenue - a.revenue || a.label.localeCompare(b.label))
-    .slice(0, selectedProduct ? 18 : 14);
+    .slice(0, 14);
   const maxUnits = Math.max(1, ...graphRows.map(row => row.units));
   const maxRevenue = Math.max(1, ...graphRows.map(row => row.revenue));
 
@@ -373,6 +390,42 @@ function renderSalesDashboardCharts() {
         <div class="sales-chart-bars">
           <div class="sales-bar units" style="width:${Math.max(3, (row.units / maxUnits) * 100)}%"><span>${row.units}</span></div>
           <div class="sales-bar revenue" style="width:${Math.max(3, (row.revenue / maxRevenue) * 100)}%"><span>${rupees(row.revenue)}</span></div>
+        </div>
+      </div>
+    `).join('')}
+  `;
+  renderProductSalesChart();
+}
+
+function renderProductSalesChart() {
+  const chart = document.getElementById('product-sales-chart');
+  if (!chart) return;
+  const product = getSelectedProduct();
+  if (!product) {
+    chart.innerHTML = '<p class="inventory-empty">Product timeline appears after selecting a product.</p>';
+    return;
+  }
+
+  const period = SALES_DASHBOARD_STATE.period || 'daily';
+  const rows = (SALES_DASHBOARD_STATE.timeline[period] || []).filter(row => row.productId === product.id);
+  if (!rows.length) {
+    chart.innerHTML = '<p class="inventory-empty">No paid sales data for this product yet.</p>';
+    return;
+  }
+
+  const maxUnits = Math.max(1, ...rows.map(row => Number(row.units || 0)));
+  const maxRevenue = Math.max(1, ...rows.map(row => Number(row.revenue || 0)));
+  chart.innerHTML = `
+    <div class="sales-chart-legend">
+      <span><i class="units"></i>Units sold</span>
+      <span><i class="revenue"></i>Revenue</span>
+    </div>
+    ${rows.slice(-18).map(row => `
+      <div class="sales-chart-row">
+        <div class="sales-chart-label" title="${escapeHtml(row.label)}">${escapeHtml(row.label)}</div>
+        <div class="sales-chart-bars">
+          <div class="sales-bar units" style="width:${Math.max(3, (Number(row.units || 0) / maxUnits) * 100)}%"><span>${Number(row.units || 0)}</span></div>
+          <div class="sales-bar revenue" style="width:${Math.max(3, (Number(row.revenue || 0) / maxRevenue) * 100)}%"><span>${rupees(row.revenue)}</span></div>
         </div>
       </div>
     `).join('')}
@@ -394,10 +447,16 @@ function renderProductSalesTable() {
   `).join('') || '<tr><td colspan="5" class="inventory-empty">No products found.</td></tr>';
 }
 
-async function loadOrders() {
-  const data = await api('/api/orders?limit=50');
+async function loadOrders(limit = 5, bodyId = 'orders-body') {
+  const data = await api(`/api/orders?limit=${encodeURIComponent(limit)}`);
   ADMIN_ORDERS = data.orders;
-  document.getElementById('orders-body').innerHTML = data.orders.map(order => `
+  renderOrdersTable(data.orders, bodyId);
+}
+
+function renderOrdersTable(orders, bodyId = 'orders-body') {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  body.innerHTML = orders.map(order => `
     <tr data-order="${order.id}">
       <td><strong>${order.id}</strong><br /><small>${order.customer.firstName || ''} ${order.customer.lastName || ''}</small></td>
       <td>${rupees(order.total)}</td>
@@ -421,18 +480,33 @@ async function loadOrders() {
         <button class="btn-outline small-btn" onclick="saveOrderStatus('${order.id}')">Save</button>
       </td>
     </tr>
-  `).join('');
+  `).join('') || '<tr><td colspan="6" class="inventory-empty">No orders found.</td></tr>';
 }
 
-function exportOrdersCsv() {
-  if (!ADMIN_ORDERS.length) {
+async function loadAllOrdersPage() {
+  await loadOrders(500, 'all-orders-body');
+}
+
+async function exportOrdersCsv() {
+  let exportOrders = ADMIN_ORDERS;
+  if (ADMIN_PAGE_MODE !== 'orders') {
+    try {
+      const data = await api('/api/orders?limit=500');
+      exportOrders = data.orders || [];
+    } catch (err) {
+      showMessage(err.message, true);
+      return;
+    }
+  }
+
+  if (!exportOrders.length) {
     showMessage('No orders loaded to export.', true);
     return;
   }
 
   const rows = [
     ['Order ID', 'Customer', 'Email', 'Total', 'Payment', 'Fulfillment', 'Logistics', 'Created At'],
-    ...ADMIN_ORDERS.map(order => [
+    ...exportOrders.map(order => [
       order.id,
       `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim(),
       order.customer.email || '',
@@ -456,6 +530,11 @@ async function saveOrderStatus(id) {
     })
   });
   showMessage('Order status updated.');
+  if (ADMIN_PAGE_MODE === 'orders') {
+    await loadAllOrdersPage();
+  } else {
+    await loadOrders();
+  }
 }
 
 async function verifyManualPayment(id) {
@@ -474,7 +553,11 @@ async function verifyManualPayment(id) {
   });
   showMessage(data.message || 'Payment verified.');
   await loadDashboardData();
-  await loadOrders();
+  if (ADMIN_PAGE_MODE === 'orders') {
+    await loadAllOrdersPage();
+  } else {
+    await loadOrders();
+  }
 }
 
 // --- Inventory Logic ---
