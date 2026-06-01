@@ -1630,6 +1630,20 @@ body {
 .cart-note {
   color: var(--muted);
 }
+.prebook-note,
+.prebook-inline-note {
+  margin: 0.6rem 0 0;
+  color: var(--terra);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.prebook-inline-note {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+.prebook-balance-card {
+  margin: 1rem 0;
+}
 
 .product-detail {
   display: grid;

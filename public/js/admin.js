@@ -458,16 +458,24 @@ function renderOrdersTable(orders, bodyId = 'orders-body') {
   if (!body) return;
   body.innerHTML = orders.map(order => `
     <tr data-order="${order.id}">
-      <td><strong>${order.id}</strong><br /><small>${order.customer.firstName || ''} ${order.customer.lastName || ''}</small></td>
-      <td>${rupees(order.total)}</td>
+      <td>
+        <strong>${order.id}</strong><br />
+        <small>${order.customer.firstName || ''} ${order.customer.lastName || ''}</small>
+        ${order.orderType === 'PREBOOK' ? '<br /><span class="inventory-badge warn">Pre-book</span>' : ''}
+      </td>
+      <td>
+        ${rupees(order.total)}
+        ${order.orderType === 'PREBOOK' ? `<br /><small>Advance: ${rupees(order.advanceAmount)}</small><br /><small>Balance: ${rupees(order.balanceAmount)}</small>` : ''}
+      </td>
       <td>
         <strong>${escapeHtml(order.paymentStatus)}</strong>
         ${order.providerTransactionId ? `<br /><small>Ref: ${escapeHtml(order.providerTransactionId)}</small>` : ''}
+        ${order.balanceProviderTransactionId ? `<br /><small>Balance Ref: ${escapeHtml(order.balanceProviderTransactionId)}</small>` : ''}
         ${order.paymentProvider ? `<br /><small>${escapeHtml(order.paymentProvider)}</small>` : ''}
       </td>
       <td>
         <select class="fulfillment-status">
-          ${['PENDING','READY_FOR_SHIPPING','PACKED','SHIPPED','DELIVERED','CANCELLED'].map(status => `<option value="${status}" ${order.fulfillmentStatus === status ? 'selected' : ''}>${status}</option>`).join('')}
+          ${['PENDING','PREBOOK_ADVANCE_PENDING','PREBOOK_WAITING_STOCK','PREBOOK_READY_FOR_BALANCE','READY_FOR_SHIPPING','PACKED','SHIPPED','DELIVERED','CANCELLED'].map(status => `<option value="${status}" ${order.fulfillmentStatus === status ? 'selected' : ''}>${status}</option>`).join('')}
         </select>
       </td>
       <td>
@@ -476,11 +484,30 @@ function renderOrdersTable(orders, bodyId = 'orders-body') {
         </select>
       </td>
       <td class="order-row-actions">
-        ${order.paymentStatus === 'UPI_PENDING_VERIFICATION' ? `<button class="btn-outline small-btn" onclick="verifyManualPayment('${order.id}')">Verify payment</button>` : ''}
+        ${paymentActionButton(order)}
         <button class="btn-outline small-btn" onclick="saveOrderStatus('${order.id}')">Save</button>
       </td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="inventory-empty">No orders found.</td></tr>';
+}
+
+function paymentActionButton(order) {
+  if (order.paymentStatus === 'UPI_PENDING_VERIFICATION') {
+    return `<button class="btn-outline small-btn" onclick="verifyManualPayment('${order.id}')">Verify payment</button>`;
+  }
+  if (order.paymentStatus === 'PREBOOK_ADVANCE_PENDING') {
+    return `<button class="btn-outline small-btn" onclick="verifyManualPayment('${order.id}')">Verify advance</button>`;
+  }
+  if (order.paymentStatus === 'PREBOOK_ADVANCE_PAID') {
+    return `<button class="btn-outline small-btn" onclick="requestPrebookBalance('${order.id}')">Request balance</button>`;
+  }
+  if (order.paymentStatus === 'PREBOOK_BALANCE_REQUESTED') {
+    return `<span class="inventory-badge warn">Balance requested</span>`;
+  }
+  if (order.paymentStatus === 'PREBOOK_BALANCE_PENDING') {
+    return `<button class="btn-outline small-btn" onclick="verifyManualPayment('${order.id}')">Verify balance</button>`;
+  }
+  return '';
 }
 
 async function loadAllOrdersPage() {
@@ -505,12 +532,15 @@ async function exportOrdersCsv() {
   }
 
   const rows = [
-    ['Order ID', 'Customer', 'Email', 'Total', 'Payment', 'Fulfillment', 'Logistics', 'Created At'],
+    ['Order ID', 'Customer', 'Email', 'Order Type', 'Total', 'Advance', 'Balance', 'Payment', 'Fulfillment', 'Logistics', 'Created At'],
     ...exportOrders.map(order => [
       order.id,
       `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim(),
       order.customer.email || '',
+      order.orderType || 'STANDARD',
       order.total,
+      order.advanceAmount || 0,
+      order.balanceAmount || 0,
       order.paymentStatus,
       order.fulfillmentStatus,
       order.logisticsStatus,
@@ -539,11 +569,17 @@ async function saveOrderStatus(id) {
 
 async function verifyManualPayment(id) {
   const order = ADMIN_ORDERS.find(item => item.id === id);
-  const reference = order?.providerTransactionId || '';
+  const isBalance = order?.paymentStatus === 'PREBOOK_BALANCE_PENDING';
+  const reference = isBalance ? order?.balanceProviderTransactionId || '' : order?.providerTransactionId || '';
+  const label = order?.paymentStatus === 'PREBOOK_ADVANCE_PENDING'
+    ? 'Verify pre-book advance?'
+    : isBalance
+      ? 'Verify pre-book balance?'
+      : 'Verify UPI payment?';
   const confirmed = await showAdminConfirm({
-    title: 'Verify UPI payment?',
-    body: `Mark order ${id} as paid${reference ? ` using reference ${reference}` : ''}? This will reduce stock and move the order to ready for shipping.`,
-    confirmText: 'Verify payment'
+    title: label,
+    body: `${isBalance ? 'Finalise pre-book and reduce stock' : 'Verify payment'} for order ${id}${reference ? ` using reference ${reference}` : ''}?`,
+    confirmText: isBalance ? 'Verify balance' : 'Verify payment'
   });
   if (!confirmed) return;
 
@@ -553,6 +589,23 @@ async function verifyManualPayment(id) {
   });
   showMessage(data.message || 'Payment verified.');
   await loadDashboardData();
+  if (ADMIN_PAGE_MODE === 'orders') {
+    await loadAllOrdersPage();
+  } else {
+    await loadOrders();
+  }
+}
+
+async function requestPrebookBalance(id) {
+  const confirmed = await showAdminConfirm({
+    title: 'Request balance payment?',
+    body: `Send balance payment request for pre-book order ${id}? Stock must be available before this can be sent.`,
+    confirmText: 'Request balance'
+  });
+  if (!confirmed) return;
+
+  const data = await api(`/api/orders/${id}/prebook/request-balance`, { method: 'POST' });
+  showMessage(data.message || 'Balance request sent.');
   if (ADMIN_PAGE_MODE === 'orders') {
     await loadAllOrdersPage();
   } else {

@@ -6,7 +6,7 @@
   <title>Order Received - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=manual-upi-1" />
+  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
 </head>
 <body>
 <header class="site-header">
@@ -41,6 +41,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(window.location.search);
   const txnId = params.get('transactionId');
+  const isPrebook = params.get('prebook') === '1';
 
   if (!txnId) {
     showFailure();
@@ -53,10 +54,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!res.ok || !data.success) throw new Error(data.message || 'Could not verify order.');
 
     const isPaid = ['PAID', 'PAYMENT_SUCCESS'].includes(data.status);
-    document.getElementById('success-title').textContent = isPaid ? 'Order confirmed!' : 'Order received!';
+    document.getElementById('success-title').textContent = isPaid ? 'Order confirmed!' : isPrebook ? 'Pre-book received!' : 'Order received!';
     document.getElementById('success-msg').textContent = isPaid
       ? 'Your payment has been verified and your order is confirmed.'
-      : 'Your UPI reference has been submitted. We will verify the payment and then prepare your order.';
+      : isPrebook
+        ? 'Your advance payment reference has been submitted. We will verify it and notify you when stock is ready for the remaining payment.'
+        : 'Your UPI reference has been submitted. We will verify the payment and then prepare your order.';
     document.getElementById('order-id-display').textContent = 'Order ID: ' + txnId;
     document.getElementById('success-actions').innerHTML = `<a href="/track-order?order=${encodeURIComponent(txnId)}" class="btn-outline" style="margin-top:1rem">Track this order</a>`;
     saveCart([]);

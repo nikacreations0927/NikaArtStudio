@@ -6,7 +6,7 @@
   <title>Track Order - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=customer-auth-1" />
+  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
 </head>
 <body>
 <header class="site-header">
@@ -83,21 +83,109 @@ async function trackOrder(event) {
     const data = await res.json();
     if (!data.success) throw new Error(data.message || 'Could not find that order.');
     const order = data.order;
+    const balancePayment = await renderPrebookBalancePayment(order);
     result.innerHTML = `
       <div class="admin-panel">
         <h2>${escapeHtml(order.id)}</h2>
         <div class="status-grid">
+          ${order.orderType === 'PREBOOK' ? `<div><span>Order type</span><strong>PRE-BOOK</strong></div>` : ''}
           <div><span>Payment</span><strong>${escapeHtml(order.paymentStatus)}</strong></div>
           <div><span>Fulfillment</span><strong>${escapeHtml(order.fulfillmentStatus)}</strong></div>
           <div><span>Logistics</span><strong>${escapeHtml(order.logisticsStatus)}</strong></div>
           <div><span>Total</span><strong>${rupees(order.total)}</strong></div>
+          ${order.orderType === 'PREBOOK' ? `<div><span>Advance paid</span><strong>${rupees(order.advanceAmount)}</strong></div><div><span>Balance due</span><strong>${rupees(order.balanceAmount)}</strong></div>` : ''}
         </div>
+        ${balancePayment}
         <h3>Items</h3>
         ${order.items.map(item => `<p>${escapeHtml(item.name)} x ${item.qty}</p>`).join('')}
       </div>
     `;
   } catch (err) {
     result.innerHTML = `<div class="error-msg">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function renderPrebookBalancePayment(order) {
+  if (order.orderType !== 'PREBOOK' || order.paymentStatus !== 'PREBOOK_BALANCE_REQUESTED') return '';
+  await loadStoreConfig();
+  await loadPaymentConfigForBalance(order.balanceAmount);
+  const payment = STORE_CONFIG?.payment || {};
+  const upiId = payment.upiId || '';
+  const payeeName = payment.upiPayeeName || 'Nika Arts Studio';
+  const upiUrl = upiId
+    ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(order.balanceAmount)}&cu=INR&tn=${encodeURIComponent(`Nika Arts Studio balance ${order.id}`)}`
+    : '';
+  return `
+    <div class="payment-section manual-payment-card prebook-balance-card">
+      <p class="payment-label">Pre-book balance payment</p>
+      <p class="field-note">Stock is ready. Pay the remaining amount and submit the UPI reference below.</p>
+      <div class="upi-qr-section">
+        <p class="upi-scan-title">Scan and pay balance</p>
+        ${payment.upiQrImage
+          ? `<img class="upi-qr-image" src="${escapeHtml(payment.upiQrImage)}" alt="Scan this UPI QR code to pay balance" />`
+          : `<div class="upi-qr-placeholder">UPI QR will appear after UPI ID is configured.</div>`}
+      </div>
+      <div class="upi-detail-grid">
+        <span>UPI ID</span><strong>${upiId ? escapeHtml(upiId) : 'Not configured'}</strong>
+        <span>Balance</span><strong>${rupees(order.balanceAmount)}</strong>
+      </div>
+      <div class="upi-actions">
+        ${upiId ? `<button type="button" class="btn-outline" onclick="navigator.clipboard.writeText('${escapeJsString(upiId)}')">Copy UPI ID</button>` : ''}
+        ${upiUrl ? `<a class="btn-outline" href="${upiUrl}">Open UPI app</a>` : ''}
+      </div>
+      <div class="form-group upi-reference-group">
+        <label>Balance UPI transaction/reference ID *</label>
+        <input type="text" id="balance-upi-reference" placeholder="Paste balance payment reference" autocomplete="off" />
+      </div>
+      <button class="btn-primary" type="button" onclick="submitPrebookBalance('${escapeJsString(order.id)}')">Submit balance for verification</button>
+      <div id="balance-submit-message" class="field-note"></div>
+    </div>
+  `;
+}
+
+async function loadPaymentConfigForBalance(total) {
+  if (!Number.isFinite(Number(total)) || Number(total) <= 0) return;
+  try {
+    const res = await fetch(`/api/config/store?amount=${encodeURIComponent(Number(total).toFixed(2))}`);
+    const data = await res.json();
+    if (data.success && data.config?.payment) {
+      STORE_CONFIG = {
+        ...(STORE_CONFIG || {}),
+        payment: data.config.payment
+      };
+    }
+  } catch (err) {
+    console.error('Failed to load payment QR:', err);
+  }
+}
+
+async function submitPrebookBalance(orderId) {
+  const input = document.getElementById('balance-upi-reference');
+  const message = document.getElementById('balance-submit-message');
+  const reference = input?.value.trim();
+  const contact = document.getElementById('track-contact')?.value.trim() || '';
+  if (!reference) {
+    message.textContent = 'Enter the balance UPI reference after payment.';
+    return;
+  }
+  message.textContent = 'Submitting balance reference...';
+  try {
+    const res = await fetch(`/api/payment/prebook/${encodeURIComponent(orderId)}/balance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upiReference: reference, contact })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Could not submit balance reference.');
+    message.textContent = 'Balance reference submitted. Admin will verify and ship your order.';
+    input.disabled = true;
+    const button = document.querySelector('.prebook-balance-card button.btn-primary');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Submitted for verification';
+    }
+  } catch (err) {
+    message.textContent = err.message;
   }
 }
 </script>
