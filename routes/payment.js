@@ -6,6 +6,7 @@ const { sendOrderPlacedAdminEmail, sendOrderPlacedCustomerEmail } = require('../
 const { optionalCustomer } = require('../middleware/customerAuth');
 
 const router = express.Router();
+const ORDER_EMAIL_TIMEOUT_MS = Number(process.env.ORDER_EMAIL_TIMEOUT_MS || 10000);
 
 // PhonePe gateway integration is intentionally inactive until the merchant
 // account is approved. The checkout currently uses manual UPI verification.
@@ -38,6 +39,24 @@ function sendOrderPlacedEmails(customer, order, options = {}) {
     console.error('Order email notification failed:', { orderId: order.id, error: err.message });
     return { admin: false, customer: false };
   });
+}
+
+async function sendOrderPlacedEmailsWithTimeout(customer, order, options = {}) {
+  let timeoutId;
+  const emailPromise = sendOrderPlacedEmails(customer, order, options);
+  const timeoutPromise = new Promise(resolve => {
+    timeoutId = setTimeout(() => {
+      console.error('Order email notification timed out; continuing checkout:', {
+        orderId: order.id,
+        timeoutMs: ORDER_EMAIL_TIMEOUT_MS
+      });
+      resolve({ admin: false, customer: false, timedOut: true });
+    }, ORDER_EMAIL_TIMEOUT_MS);
+  });
+
+  const result = await Promise.race([emailPromise, timeoutPromise]);
+  clearTimeout(timeoutId);
+  return result;
 }
 
 router.post('/initiate', asyncHandler(async (req, res) => {
@@ -77,7 +96,7 @@ router.post('/initiate', asyncHandler(async (req, res) => {
   });
 
   const emailOrder = await getOrder(orderId);
-  sendOrderPlacedEmails(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
+  const emailStatus = await sendOrderPlacedEmailsWithTimeout(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
 
   res.json({
     success: true,
@@ -86,6 +105,7 @@ router.post('/initiate', asyncHandler(async (req, res) => {
     orderId,
     status: order.paymentStatus,
     emailQueued: true,
+    emailStatus,
     order: await getOrder(orderId)
   });
 }));
@@ -113,7 +133,7 @@ router.post('/prebook/:orderId/balance', optionalCustomer, asyncHandler(async (r
 
   const order = await submitPrebookBalanceReference(req.params.orderId, reference);
 
-  sendOrderPlacedEmails(order.customer, order, { stage: 'balance' });
+  const emailStatus = await sendOrderPlacedEmailsWithTimeout(order.customer, order, { stage: 'balance' });
 
   res.json({
     success: true,
@@ -122,6 +142,7 @@ router.post('/prebook/:orderId/balance', optionalCustomer, asyncHandler(async (r
     orderId: order.id,
     status: order.paymentStatus,
     emailQueued: true,
+    emailStatus,
     order
   });
 }));
