@@ -14,6 +14,29 @@ function normalizeReference(value) {
   return String(value || '').trim().slice(0, 80);
 }
 
+async function sendOrderPlacedEmails(customer, order, options = {}) {
+  const [adminResult, customerResult] = await Promise.allSettled([
+    sendOrderPlacedAdminEmail(customer, order, options),
+    sendOrderPlacedCustomerEmail(customer, order, options)
+  ]);
+
+  const status = {
+    admin: adminResult.status === 'fulfilled' && adminResult.value === true,
+    customer: customerResult.status === 'fulfilled' && customerResult.value === true
+  };
+
+  if (!status.admin || !status.customer) {
+    console.error('Order email notification incomplete:', {
+      orderId: order.id,
+      status,
+      adminError: adminResult.status === 'rejected' ? adminResult.reason?.message : null,
+      customerError: customerResult.status === 'rejected' ? customerResult.reason?.message : null
+    });
+  }
+
+  return status;
+}
+
 router.post('/initiate', asyncHandler(async (req, res) => {
   const { customer, items, cart, upiReference } = req.body;
   const orderItems = items || cart;
@@ -51,8 +74,7 @@ router.post('/initiate', asyncHandler(async (req, res) => {
   });
 
   const emailOrder = await getOrder(orderId);
-  sendOrderPlacedAdminEmail(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
-  sendOrderPlacedCustomerEmail(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
+  const emailStatus = await sendOrderPlacedEmails(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
 
   res.json({
     success: true,
@@ -60,6 +82,7 @@ router.post('/initiate', asyncHandler(async (req, res) => {
     prebook: isPrebook,
     orderId,
     status: order.paymentStatus,
+    emailStatus,
     order: await getOrder(orderId)
   });
 }));
@@ -87,8 +110,7 @@ router.post('/prebook/:orderId/balance', optionalCustomer, asyncHandler(async (r
 
   const order = await submitPrebookBalanceReference(req.params.orderId, reference);
 
-  sendOrderPlacedAdminEmail(order.customer, order, { stage: 'balance' });
-  sendOrderPlacedCustomerEmail(order.customer, order, { stage: 'balance' });
+  const emailStatus = await sendOrderPlacedEmails(order.customer, order, { stage: 'balance' });
 
   res.json({
     success: true,
@@ -96,6 +118,7 @@ router.post('/prebook/:orderId/balance', optionalCustomer, asyncHandler(async (r
     prebook: true,
     orderId: order.id,
     status: order.paymentStatus,
+    emailStatus,
     order
   });
 }));

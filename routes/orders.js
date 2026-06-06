@@ -115,12 +115,15 @@ router.patch('/:id/payment', requireAdmin, asyncHandler(async (req, res) => {
     }, { provider: 'Manual UPI' });
   }
 
-  sendPaymentConfirmedCustomerEmail(order.customer, order, {
+  const customerEmailSent = await sendPaymentConfirmedCustomerEmail(order.customer, order, {
     stage: order.orderType === 'PREBOOK' && order.paymentStatus === 'PREBOOK_ADVANCE_PAID' ? 'advance' : 'full',
     statusLabel: order.orderType === 'PREBOOK' && order.paymentStatus === 'PREBOOK_ADVANCE_PAID'
       ? 'Your pre-book advance payment has been verified. We will notify you when stock is ready for the remaining payment.'
       : 'Your UPI payment has been verified. Your order is confirmed and will be prepared for shipping.'
   });
+  if (!customerEmailSent) {
+    console.error('Payment confirmation email was not sent:', { orderId: order.id });
+  }
 
   if (shouldCreateShipment) {
     const shiprocketModule = require('./shiprocket');

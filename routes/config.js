@@ -1,6 +1,8 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const asyncHandler = require('../middleware/asyncHandler');
+const { requireAdmin } = require('../middleware/adminAuth');
+const { hasEmailConfig } = require('../services/email');
 const { getShippingConfig } = require('../services/shipping');
 
 const router = express.Router();
@@ -45,6 +47,22 @@ router.get('/store', asyncHandler(async (req, res) => {
         upiIntentUrl,
         upiQrImage
       }
+    }
+  });
+}));
+
+router.get('/email', requireAdmin, asyncHandler(async (req, res) => {
+  const emailUser = process.env.EMAIL_USER || '';
+  const notificationEmail = process.env.ORDER_NOTIFICATION_EMAIL || 'nika.creations0927@gmail.com';
+
+  res.json({
+    success: true,
+    email: {
+      configured: hasEmailConfig(),
+      emailUserPresent: Boolean(process.env.EMAIL_USER),
+      emailPassPresent: Boolean(process.env.EMAIL_PASS),
+      fromDomain: emailUser.includes('@') ? emailUser.split('@').pop() : '',
+      notificationEmail
     }
   });
 }));
