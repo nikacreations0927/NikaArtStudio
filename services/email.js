@@ -175,6 +175,49 @@ async function sendMailSafely(mailOptions, logLabel) {
   }
 }
 
+async function sendDiagnosticEmail(toAddress) {
+  if (!hasEmailConfig()) {
+    return {
+      success: false,
+      message: 'EMAIL_USER/EMAIL_PASS are not configured.'
+    };
+  }
+
+  const to = toAddress || adminNotificationEmail();
+  try {
+    const info = await transporter.sendMail({
+      from: `"Nika Arts Studio" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: `Nika Arts Studio email test - ${new Date().toISOString()}`,
+      html: brandedEmail({
+        title: 'Email test successful',
+        preheader: 'Nika Arts Studio production email test.',
+        children: `
+          <p style="margin:0 0 14px; color:${BRAND.green}; font-size:16px;">This is a diagnostic email from Nika Arts Studio.</p>
+          <p style="margin:0; color:${BRAND.muted}; font-size:14px;">If you received this, Gmail delivery from the website server is working.</p>
+        `
+      })
+    });
+
+    return {
+      success: true,
+      messageId: info.messageId || '',
+      accepted: info.accepted || [],
+      rejected: info.rejected || [],
+      response: info.response || ''
+    };
+  } catch (err) {
+    return {
+      success: false,
+      code: err.code || '',
+      command: err.command || '',
+      responseCode: err.responseCode || '',
+      response: err.response || '',
+      message: err.message || 'Email send failed.'
+    };
+  }
+}
+
 async function sendOrderPlacedCustomerEmail(customer, order, options = {}) {
   const stage = options.stage || (order.orderType === 'PREBOOK' ? 'advance' : 'full');
   const amountLabel = stage === 'advance'
@@ -394,5 +437,6 @@ module.exports = {
   sendPrebookBalanceRequest,
   sendOrderPlacedCustomerEmail,
   sendOrderPlacedAdminEmail,
-  sendPaymentConfirmedCustomerEmail
+  sendPaymentConfirmedCustomerEmail,
+  sendDiagnosticEmail
 };

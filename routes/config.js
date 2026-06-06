@@ -2,7 +2,7 @@ const express = require('express');
 const QRCode = require('qrcode');
 const asyncHandler = require('../middleware/asyncHandler');
 const { requireAdmin } = require('../middleware/adminAuth');
-const { hasEmailConfig } = require('../services/email');
+const { hasEmailConfig, sendDiagnosticEmail } = require('../services/email');
 const { getShippingConfig } = require('../services/shipping');
 
 const router = express.Router();
@@ -64,6 +64,15 @@ router.get('/email', requireAdmin, asyncHandler(async (req, res) => {
       fromDomain: emailUser.includes('@') ? emailUser.split('@').pop() : '',
       notificationEmail
     }
+  });
+}));
+
+router.post('/email/test', requireAdmin, asyncHandler(async (req, res) => {
+  const requestedTo = String(req.body?.to || '').trim();
+  const result = await sendDiagnosticEmail(requestedTo || undefined);
+  res.status(result.success ? 200 : 502).json({
+    success: result.success,
+    result
   });
 }));
 
