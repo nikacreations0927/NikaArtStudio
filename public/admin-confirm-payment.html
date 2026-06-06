@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nika Arts Studio | Confirm Payment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css?v=payment-confirm-1" />
+</head>
+<body data-admin-page="confirm-payment">
+<header class="site-header">
+  <a href="/" class="logo">Nika Arts Studio</a>
+  <nav class="nav-links">
+    <a href="/shop">Shop</a>
+    <a href="/admin">Admin</a>
+    <a href="/admin/orders">Orders</a>
+  </nav>
+</header>
+
+<div class="page-hero-small">
+  <h1>Confirm UPI Payment</h1>
+  <p>Review the order and mark payment as received only after checking the UPI transaction.</p>
+</div>
+
+<main class="section payment-confirm-shell">
+  <div id="payment-confirm-message" class="admin-message"></div>
+
+  <section id="payment-confirm-login" class="admin-panel payment-confirm-login" hidden>
+    <h3>Admin login required</h3>
+    <p>Sign in to verify payment for this order.</p>
+    <form id="payment-confirm-login-form" class="payment-confirm-form">
+      <label>Username
+        <input type="text" id="payment-confirm-username" autocomplete="username" required />
+      </label>
+      <label>Password
+        <input type="password" id="payment-confirm-password" autocomplete="current-password" required />
+      </label>
+      <button class="btn-primary" type="submit">Log in and review</button>
+    </form>
+  </section>
+
+  <section id="payment-confirm-card" class="admin-panel payment-confirm-card" hidden>
+    <div class="panel-title-row">
+      <div>
+        <h3 id="payment-confirm-title">Order</h3>
+        <p id="payment-confirm-subtitle">Loading order details...</p>
+      </div>
+      <a href="/admin/orders" class="btn-outline">View all orders</a>
+    </div>
+
+    <div class="payment-confirm-grid">
+      <div class="payment-confirm-box">
+        <span>Customer</span>
+        <strong id="confirm-customer-name">-</strong>
+        <small id="confirm-customer-contact">-</small>
+      </div>
+      <div class="payment-confirm-box">
+        <span>Payment mode</span>
+        <strong id="confirm-payment-mode">-</strong>
+        <small id="confirm-payment-reference">-</small>
+      </div>
+      <div class="payment-confirm-box">
+        <span>Payment status</span>
+        <strong id="confirm-payment-status">-</strong>
+        <small id="confirm-fulfillment-status">-</small>
+      </div>
+      <div class="payment-confirm-box">
+        <span>Amount to verify</span>
+        <strong id="confirm-amount">-</strong>
+        <small id="confirm-order-total">-</small>
+      </div>
+    </div>
+
+    <div class="admin-table-wrap payment-confirm-table-wrap">
+      <table class="admin-table payment-confirm-table">
+        <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+        <tbody id="payment-confirm-items"></tbody>
+      </table>
+    </div>
+
+    <div class="payment-confirm-actions">
+      <button id="payment-confirm-button" class="btn-primary" type="button">Confirm payment received</button>
+      <a id="payment-confirm-track-link" class="btn-outline" href="/track-order">Open tracking page</a>
+    </div>
+  </section>
+</main>
+
+<script src="/js/admin-confirm-payment.js?v=payment-confirm-1"></script>
+</body>
+</html>

@@ -990,6 +990,91 @@ body {
   z-index: 1;
   background: var(--white);
 }
+.payment-confirm-shell {
+  max-width: 980px;
+  margin: 0 auto;
+}
+.payment-confirm-login {
+  max-width: 520px;
+}
+.payment-confirm-login p {
+  margin-top: -0.5rem;
+  color: var(--muted);
+}
+.payment-confirm-form {
+  display: grid;
+  gap: 0.85rem;
+}
+.payment-confirm-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.payment-confirm-form input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--charcoal);
+  font-family: var(--font-body);
+}
+.payment-confirm-card {
+  display: grid;
+  gap: 1rem;
+}
+.payment-confirm-login[hidden],
+.payment-confirm-card[hidden] {
+  display: none;
+}
+.payment-confirm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+.payment-confirm-box {
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--cream);
+}
+.payment-confirm-box span,
+.payment-confirm-box small {
+  display: block;
+  color: var(--muted);
+}
+.payment-confirm-box span {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.payment-confirm-box strong {
+  display: block;
+  margin: 0.2rem 0;
+  font-family: var(--font-head);
+  font-size: 1.25rem;
+  color: var(--charcoal);
+}
+.payment-confirm-box small {
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+.payment-confirm-table {
+  min-width: 640px;
+}
+.payment-confirm-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.payment-confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .admin-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1790,9 +1875,18 @@ body {
 
 @media (max-width: 600px) {
   .dashboard-controls,
+  .payment-confirm-grid,
   .product-report-grid,
   .sales-chart-row {
     grid-template-columns: 1fr;
+  }
+  .payment-confirm-actions {
+    justify-content: stretch;
+  }
+  .payment-confirm-actions .btn-primary,
+  .payment-confirm-actions .btn-outline {
+    width: 100%;
+    text-align: center;
   }
   .sales-chart-label {
     white-space: normal;

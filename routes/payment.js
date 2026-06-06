@@ -2,7 +2,7 @@
 const express = require('express');
 const { createOrderFromCart, getOrder, recordPayment, submitPrebookBalanceReference } = require('../db');
 const asyncHandler = require('../middleware/asyncHandler');
-const { sendAdminNotification, sendCustomerReceipt } = require('../services/email');
+const { sendOrderPlacedAdminEmail, sendOrderPlacedCustomerEmail } = require('../services/email');
 const { optionalCustomer } = require('../middleware/customerAuth');
 
 const router = express.Router();
@@ -50,15 +50,9 @@ router.post('/initiate', asyncHandler(async (req, res) => {
     }
   });
 
-  sendAdminNotification(customer, orderId, order.total, {
-    statusLabel: isPrebook ? 'Pre-book advance pending verification' : 'Manual UPI payment pending verification',
-    paymentReference: reference
-  });
-  sendCustomerReceipt(customer, order.items, orderId, isPrebook ? order.advanceAmount : order.total, {
-    statusLabel: isPrebook
-      ? `Your pre-book has been received. We will verify your ${order.advanceAmount} advance payment and notify you when stock is ready for the remaining payment.`
-      : 'Your order has been received. We will verify your UPI payment reference and confirm it before packing.'
-  });
+  const emailOrder = await getOrder(orderId);
+  sendOrderPlacedAdminEmail(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
+  sendOrderPlacedCustomerEmail(customer, emailOrder, { stage: isPrebook ? 'advance' : 'full' });
 
   res.json({
     success: true,
@@ -93,10 +87,8 @@ router.post('/prebook/:orderId/balance', optionalCustomer, asyncHandler(async (r
 
   const order = await submitPrebookBalanceReference(req.params.orderId, reference);
 
-  sendAdminNotification(order.customer, order.id, order.balanceAmount, {
-    statusLabel: 'Pre-book balance payment pending verification',
-    paymentReference: reference
-  });
+  sendOrderPlacedAdminEmail(order.customer, order, { stage: 'balance' });
+  sendOrderPlacedCustomerEmail(order.customer, order, { stage: 'balance' });
 
   res.json({
     success: true,

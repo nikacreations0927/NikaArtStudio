@@ -1,5 +1,5 @@
 const express = require('express');
-const { sendCustomerReceipt, sendPrebookBalanceRequest } = require('../services/email');
+const { sendPaymentConfirmedCustomerEmail, sendPrebookBalanceRequest } = require('../services/email');
 const { cancelPaidOrder, getOrder, getSalesDashboard, getSalesSummary, listOrders, markOrderPaid, markPrebookAdvancePaid, markPrebookBalancePaid, requestPrebookBalance, nowSql, db, recordLogistics } = require('../db');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { optionalCustomer } = require('../middleware/customerAuth');
@@ -67,6 +67,12 @@ router.get('/sales/dashboard', requireAdmin, asyncHandler(async (req, res) => {
   res.json({ success: true, dashboard });
 }));
 
+router.get('/:id', requireAdmin, asyncHandler(async (req, res) => {
+  const order = await getOrder(req.params.id);
+  if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+  res.json({ success: true, order });
+}));
+
 router.patch('/:id/payment', requireAdmin, asyncHandler(async (req, res) => {
   const existing = await getOrder(req.params.id);
   if (!existing) return res.status(404).json({ success: false, message: 'Order not found.' });
@@ -109,7 +115,8 @@ router.patch('/:id/payment', requireAdmin, asyncHandler(async (req, res) => {
     }, { provider: 'Manual UPI' });
   }
 
-  sendCustomerReceipt(order.customer, order.items, order.id, order.total, {
+  sendPaymentConfirmedCustomerEmail(order.customer, order, {
+    stage: order.orderType === 'PREBOOK' && order.paymentStatus === 'PREBOOK_ADVANCE_PAID' ? 'advance' : 'full',
     statusLabel: order.orderType === 'PREBOOK' && order.paymentStatus === 'PREBOOK_ADVANCE_PAID'
       ? 'Your pre-book advance payment has been verified. We will notify you when stock is ready for the remaining payment.'
       : 'Your UPI payment has been verified. Your order is confirmed and will be prepared for shipping.'

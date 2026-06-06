@@ -84,6 +84,7 @@ const pageRoutes = {
   '/account': 'account.html',
   '/admin': 'admin.html',
   '/admin/orders': 'admin-orders.html',
+  '/admin/confirm-payment': 'admin-confirm-payment.html',
   '/privacy': 'privacy.html',
   '/shipping': 'shipping.html',
   '/returns': 'returns.html'
@@ -100,6 +101,7 @@ const legacyHtmlRedirects = {
   '/account.html': '/account',
   '/admin.html': '/admin',
   '/admin-orders.html': '/admin/orders',
+  '/admin-confirm-payment.html': '/admin/confirm-payment',
   '/privacy.html': '/privacy',
   '/shipping.html': '/shipping',
   '/returns.html': '/returns'
