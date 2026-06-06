@@ -218,6 +218,51 @@ async function sendDiagnosticEmail(toAddress) {
   }
 }
 
+async function sendDiagnosticOrderEmails(toAddress) {
+  const to = toAddress || adminNotificationEmail();
+  const customer = {
+    firstName: 'Nika',
+    lastName: 'Test',
+    email: to,
+    phone: '9999999999'
+  };
+  const order = {
+    id: `EMAIL-ORDER-TEST-${Date.now()}`,
+    customer,
+    subtotal: 499,
+    shipping: 99,
+    total: 598,
+    orderType: 'STANDARD',
+    advanceAmount: 0,
+    balanceAmount: 0,
+    paymentStatus: 'UPI_PENDING_VERIFICATION',
+    fulfillmentStatus: 'PENDING',
+    logisticsStatus: 'NOT_CREATED',
+    paymentProvider: 'Manual UPI',
+    providerTransactionId: 'ORDER-TEMPLATE-TEST',
+    items: [{ productId: 'TEST', name: 'Diagnostic Keychain', price: 499, qty: 1, lineTotal: 499 }]
+  };
+
+  const [adminResult, customerResult] = await Promise.allSettled([
+    sendOrderPlacedAdminEmail(customer, order, { stage: 'full' }),
+    sendOrderPlacedCustomerEmail(customer, order, { stage: 'full' })
+  ]);
+
+  return {
+    success: adminResult.status === 'fulfilled' && adminResult.value === true
+      && customerResult.status === 'fulfilled' && customerResult.value === true,
+    orderId: order.id,
+    admin: {
+      success: adminResult.status === 'fulfilled' && adminResult.value === true,
+      error: adminResult.status === 'rejected' ? adminResult.reason?.message || 'failed' : ''
+    },
+    customer: {
+      success: customerResult.status === 'fulfilled' && customerResult.value === true,
+      error: customerResult.status === 'rejected' ? customerResult.reason?.message || 'failed' : ''
+    }
+  };
+}
+
 async function sendOrderPlacedCustomerEmail(customer, order, options = {}) {
   const stage = options.stage || (order.orderType === 'PREBOOK' ? 'advance' : 'full');
   const amountLabel = stage === 'advance'
@@ -438,5 +483,6 @@ module.exports = {
   sendOrderPlacedCustomerEmail,
   sendOrderPlacedAdminEmail,
   sendPaymentConfirmedCustomerEmail,
-  sendDiagnosticEmail
+  sendDiagnosticEmail,
+  sendDiagnosticOrderEmails
 };
