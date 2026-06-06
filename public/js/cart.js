@@ -49,15 +49,38 @@ function getShippingConfig() {
   return STORE_CONFIG?.shipping || { fee: 0, freeShippingMinimum: Number.POSITIVE_INFINITY };
 }
 
+function prebookAdvanceAmount(price, qty = 1) {
+  return Math.ceil(Number(price || 0) * Number(qty || 1) * 0.5);
+}
+
+function isPrebookCart(cart) {
+  return (cart || []).some(item => item.prebook === true || item.orderType === 'PREBOOK');
+}
+
 function calculateCartTotals(cart) {
-  const subtotal = (cart || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+  const prebook = isPrebookCart(cart);
+  const fullSubtotal = (cart || []).reduce((sum, item) => {
+    const itemPrice = item.prebook ? Number(item.fullPrice || item.price || 0) : Number(item.price || 0);
+    return sum + itemPrice * Number(item.qty || 0);
+  }, 0);
+  const payableSubtotal = (cart || []).reduce((sum, item) => {
+    if (item.prebook) return sum + prebookAdvanceAmount(item.fullPrice || item.price, item.qty);
+    return sum + Number(item.price || 0) * Number(item.qty || 0);
+  }, 0);
   const shippingConfig = getShippingConfig();
-  const shipping = subtotal >= shippingConfig.freeShippingMinimum ? 0 : shippingConfig.fee;
+  const shipping = fullSubtotal >= shippingConfig.freeShippingMinimum ? 0 : shippingConfig.fee;
+  const fullTotal = fullSubtotal + shipping;
+  const total = prebook ? payableSubtotal : fullTotal;
   return {
-    subtotal,
+    subtotal: payableSubtotal,
+    fullSubtotal,
     shipping,
-    total: subtotal + shipping,
-    freeShippingMinimum: shippingConfig.freeShippingMinimum
+    total,
+    fullTotal,
+    advanceDue: prebook ? payableSubtotal : 0,
+    balanceDue: prebook ? fullTotal - payableSubtotal : 0,
+    freeShippingMinimum: shippingConfig.freeShippingMinimum,
+    prebook
   };
 }
 
@@ -94,6 +117,7 @@ function productCard(product) {
   const safeImage = escapeHtml(imgSrc);
   const safeDescription = escapeHtml(product.description || '');
   const isOut = Number(product.stock || 0) <= 0;
+  const advance = prebookAdvanceAmount(product.price);
   return `
     <div class="product-card reveal">
       <a href="/product?id=${encodeURIComponent(product.id)}" class="product-image-link" aria-label="View ${safeName}">
@@ -109,10 +133,11 @@ function productCard(product) {
       ${safeDescription ? `<p class="product-card-desc">${safeDescription}</p>` : ''}
       <div class="product-card-actions">
         <a class="btn-outline" href="/product?id=${encodeURIComponent(product.id)}">View</a>
-        <button class="btn-primary" ${isOut ? 'disabled' : ''} onclick="addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})">
-          ${isOut ? 'Out of stock' : 'Add to cart'}
+        <button class="btn-primary" onclick="${isOut ? `addPrebookToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})` : `addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})`}">
+          ${isOut ? `Pre-book ${rupees(advance)}` : 'Add to cart'}
         </button>
       </div>
+      ${isOut ? '<p class="prebook-note">Out of stock. Reserve now with 50% advance.</p>' : ''}
     </div>
   `;
 }
@@ -135,7 +160,22 @@ function syncCartWithProducts() {
   const synced = getCart()
     .map(item => {
       const latest = PRODUCTS.find(product => product.id === item.id);
-      if (!latest || !latest.isActive || latest.stock <= 0) return null;
+      if (!latest || !latest.isActive) return null;
+      if (item.prebook) {
+        if (latest.stock > 0) return null;
+        return {
+          id: latest.id,
+          name: latest.name,
+          price: prebookAdvanceAmount(latest.price),
+          fullPrice: latest.price,
+          image: latest.image,
+          stock: latest.stock,
+          qty: 1,
+          prebook: true,
+          orderType: 'PREBOOK'
+        };
+      }
+      if (latest.stock <= 0) return null;
       return {
         id: latest.id,
         name: latest.name,
@@ -160,6 +200,10 @@ function updateCartCount() {
 
 function addToCart(product) {
   const cart = getCart();
+  if (isPrebookCart(cart)) {
+    showToast('Please checkout or remove your pre-book before adding in-stock products.', true);
+    return;
+  }
   const existing = cart.find(item => item.id === product.id);
   
   if (existing) {
@@ -180,6 +224,31 @@ function addToCart(product) {
   saveCart(cart);
   // Replaced the alert() with our new sleek floater!
   showToast(`${product.name} added to cart!`);
+}
+
+function addPrebookToCart(product) {
+  const cart = getCart();
+  if (cart.length && !isPrebookCart(cart)) {
+    showToast('Pre-book products must be checked out separately. Please clear your cart first.', true);
+    return;
+  }
+  if (cart.length && cart[0].id !== product.id) {
+    showToast('Please checkout or remove your current pre-book before selecting another.', true);
+    return;
+  }
+  const advance = prebookAdvanceAmount(product.price);
+  saveCart([{
+    id: product.id,
+    name: product.name,
+    price: advance,
+    fullPrice: Number(product.price),
+    image: product.image,
+    stock: Number(product.stock || 0),
+    qty: 1,
+    prebook: true,
+    orderType: 'PREBOOK'
+  }]);
+  showToast(`${product.name} reserved for pre-book. Advance due: ${rupees(advance)}.`);
 }
 
 // --- Premium Toast Notification System ---
@@ -247,7 +316,8 @@ function renderCartPage() {
         <img src="${imgSrc}" alt="${item.name}">
         <div class="cart-item-details">
           <h4 class="cart-item-title">${item.name}</h4>
-          <p style="margin: 0; color: #666;">${rupees(item.price)} each</p>
+          <p style="margin: 0; color: #666;">${item.prebook ? `${rupees(item.fullPrice)} full price | ${rupees(item.price)} advance` : `${rupees(item.price)} each`}</p>
+          ${item.prebook ? '<p class="cart-note prebook-inline-note">Pre-book item. Balance is requested after stock is ready.</p>' : ''}
           <button class="remove-btn" onclick="removeFromCart('${item.id}')">Remove</button>
         </div>
         <div style="text-align: right; min-width: 100px;">
@@ -255,14 +325,14 @@ function renderCartPage() {
           <div class="qty-controls">
             <button class="qty-btn" onclick="changeQty('${item.id}', -1)">-</button>
             <span style="min-width: 20px; text-align: center;">${item.qty}</span>
-            <button class="qty-btn" onclick="changeQty('${item.id}', 1)">+</button>
+            <button class="qty-btn" ${item.prebook ? 'disabled' : ''} onclick="changeQty('${item.id}', 1)">+</button>
           </div>
         </div>
       </div>
     `;
   }).join('');
 
-  const { shipping, total } = calculateCartTotals(cart);
+  const { shipping, total, fullSubtotal, fullTotal, balanceDue, prebook } = calculateCartTotals(cart);
 
   main.innerHTML = `
     <div class="cart-items-section">
@@ -278,21 +348,25 @@ function renderCartPage() {
       <h2 class="section-heading">Order Summary</h2>
       
       <div class="summary-row">
-        <span>Subtotal</span>
-        <span style="font-weight: 500;">${rupees(subtotal)}</span>
+        <span>${prebook ? 'Advance due today' : 'Subtotal'}</span>
+        <span style="font-weight: 500;">${rupees(total)}</span>
       </div>
+      ${prebook ? `
+        <div class="summary-row"><span>Full product value</span><span style="font-weight: 500;">${rupees(fullSubtotal)}</span></div>
+      ` : ''}
       <div class="summary-row">
         <span>Shipping</span>
         <span style="font-weight: 500;">${shipping === 0 ? 'Free' : rupees(shipping)}</span>
       </div>
       <p class="cart-note">${shippingPolicyText()}</p>
+      ${prebook ? `<p class="cart-note">Shipping and remaining balance are paid after stock is ready. Balance later: ${rupees(balanceDue)}.</p>` : ''}
       <div class="summary-row summary-total">
-        <span>Total</span>
+        <span>${prebook ? 'Pay now' : 'Total'}</span>
         <span>${rupees(total)}</span>
       </div>
 
       <a href="/checkout" class="btn-primary" style="width: 100%; margin-top: 1rem; text-align: center;" id="checkout-btn">
-        Proceed to Secure Checkout
+        ${prebook ? 'Proceed to Pre-book Checkout' : 'Proceed to Secure Checkout'}
       </a>
 
       <div class="trust-badge">
@@ -307,6 +381,10 @@ function changeQty(id, delta) {
   const cart = getCart();
   const item = cart.find(i => i.id === id);
   if (item) {
+    if (item.prebook && delta > 0) {
+      showToast('Pre-book quantity is limited to 1 per checkout.', true);
+      return;
+    }
     item.qty += delta;
     if (item.qty <= 0) {
       removeFromCart(id);

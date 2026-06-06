@@ -138,4 +138,34 @@ async function sendPasswordResetEmail(customer, resetUrl) {
   return true;
 }
 
-module.exports = { hasEmailConfig, sendCustomerReceipt, sendAdminNotification, sendPasswordResetEmail };
+async function sendPrebookBalanceRequest(customer, order) {
+  if (!hasEmailConfig()) {
+    console.warn('Pre-book balance email skipped because EMAIL_USER/EMAIL_PASS are not configured.');
+    return false;
+  }
+
+  const mailOptions = {
+    from: `"Nika Arts Studio" <${process.env.EMAIL_USER}>`,
+    to: customer.email,
+    subject: `Your pre-book is ready - ${order.id}`,
+    html: `
+      <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #2b3a2f; text-align: center;">Nika Arts Studio</h2>
+        <p>Hello ${customer.firstName || 'there'},</p>
+        <p>Your pre-booked item is now available. Please pay the remaining amount to confirm shipping.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Order ID</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;"><strong>${order.id}</strong></td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Advance paid</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">${rupees(order.advanceAmount)}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Balance due</td><td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;"><strong>${rupees(order.balanceAmount)}</strong></td></tr>
+        </table>
+        <p><a href="${siteUrl(`/track-order?order=${encodeURIComponent(order.id)}`)}" style="display:inline-block;padding:12px 18px;background:#2b3a2f;color:#fff;text-decoration:none;border-radius:6px;">Pay remaining amount</a></p>
+        <p style="font-size: 13px; color: #666;">After you submit the UPI reference, our admin will verify it and ship your order.</p>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+  return true;
+}
+
+module.exports = { hasEmailConfig, sendCustomerReceipt, sendAdminNotification, sendPasswordResetEmail, sendPrebookBalanceRequest };

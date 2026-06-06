@@ -83,6 +83,7 @@ const pageRoutes = {
   '/trackOrder': 'track.html',
   '/account': 'account.html',
   '/admin': 'admin.html',
+  '/admin/orders': 'admin-orders.html',
   '/privacy': 'privacy.html',
   '/shipping': 'shipping.html',
   '/returns': 'returns.html'
@@ -98,6 +99,7 @@ const legacyHtmlRedirects = {
   '/track.html': '/track-order',
   '/account.html': '/account',
   '/admin.html': '/admin',
+  '/admin-orders.html': '/admin/orders',
   '/privacy.html': '/privacy',
   '/shipping.html': '/shipping',
   '/returns.html': '/returns'

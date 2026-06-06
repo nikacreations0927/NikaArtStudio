@@ -6,7 +6,7 @@
   <title>Checkout - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=manual-upi-1" />
+  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
 </head>
 <body>
 
@@ -83,7 +83,7 @@
     <div class="summary-row"><span>Subtotal</span><span id="co-subtotal">Rs. 0</span></div>
     <div class="summary-row"><span>Shipping</span><span id="co-shipping">Rs. 0</span></div>
     <p id="shipping-policy-note" class="field-note shipping-policy-note"></p>
-    <div class="summary-row total-row"><span>Total</span><span id="co-total">Rs. 0</span></div>
+    <div class="summary-row total-row"><span id="co-total-label">Total</span><span id="co-total">Rs. 0</span></div>
 
     <div class="payment-section manual-payment-card">
       <p class="payment-label">Manual UPI payment</p>
@@ -112,6 +112,7 @@
 <script src="js/cart.js"></script>
 <script>
 let CHECKOUT_TOTAL = 0;
+let CHECKOUT_IS_PREBOOK = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
@@ -126,19 +127,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const orderItems = document.getElementById('order-items');
   orderItems.innerHTML = cart.map(item => `
     <div class="order-item-row">
-      <span>${escapeHtml(item.name)} x ${item.qty}</span>
+      <span>${escapeHtml(item.name)} x ${item.qty}${item.prebook ? '<br><small>Pre-book advance today</small>' : ''}</span>
       <span>${rupees(item.price * item.qty)}</span>
     </div>
   `).join('');
 
-  const { subtotal, shipping, total } = calculateCartTotals(cart);
+  const { subtotal, shipping, total, fullSubtotal, fullTotal, balanceDue, prebook } = calculateCartTotals(cart);
   CHECKOUT_TOTAL = total;
-  document.getElementById('co-subtotal').textContent = rupees(subtotal);
+  CHECKOUT_IS_PREBOOK = prebook;
+  document.querySelector('.payment-label').textContent = prebook ? 'Manual UPI pre-book advance' : 'Manual UPI payment';
+  document.getElementById('co-subtotal').textContent = prebook ? rupees(fullSubtotal) : rupees(subtotal);
   document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : rupees(shipping);
-  document.getElementById('co-total').textContent = rupees(total);
-  document.getElementById('shipping-policy-note').textContent = shippingPolicyText();
+  document.getElementById('co-total').textContent = prebook ? rupees(total) : rupees(fullTotal);
+  document.getElementById('co-total-label').textContent = prebook ? 'Pay advance now' : 'Total';
+  document.getElementById('shipping-policy-note').textContent = prebook
+    ? `${shippingPolicyText()} Pay ${rupees(total)} advance now. Balance after stock is ready: ${rupees(balanceDue)}.`
+    : shippingPolicyText();
   await loadPaymentConfigForTotal(total);
   renderManualUpiDetails(total);
+  if (prebook) {
+    document.getElementById('pay-btn').textContent = 'Submit pre-book advance for verification';
+  }
 });
 
 async function loadPaymentConfigForTotal(total) {
@@ -178,7 +187,7 @@ function renderManualUpiDetails(total) {
     <div class="upi-detail-grid">
       <span>Payee</span><strong>${escapeHtml(payeeName)}</strong>
       <span>UPI ID</span><strong>${upiId ? escapeHtml(upiId) : 'Not configured'}</strong>
-      <span>Amount</span><strong>${rupees(total)}</strong>
+      <span>${CHECKOUT_IS_PREBOOK ? 'Advance amount' : 'Amount'}</span><strong>${rupees(total)}</strong>
     </div>
     <div class="upi-actions">
       ${upiId ? `<button type="button" class="btn-outline" onclick="copyUpiId()">Copy UPI ID</button>` : ''}
@@ -240,10 +249,10 @@ async function submitManualUpiOrder() {
   const btn = document.getElementById('pay-btn');
   const errDiv = document.getElementById('pay-error');
   const cart = getCart();
-  const { shipping, total } = calculateCartTotals(cart);
+    const { shipping, total } = calculateCartTotals(cart);
 
   btn.disabled = true;
-  btn.textContent = 'Submitting order...';
+    btn.textContent = CHECKOUT_IS_PREBOOK ? 'Submitting pre-book...' : 'Submitting order...';
 
   const orderData = {
     customer: {
@@ -274,10 +283,10 @@ async function submitManualUpiOrder() {
 
     saveCart([]);
     updateCartCount();
-    window.location.href = `/success?transactionId=${encodeURIComponent(data.orderId)}&manual=1`;
+    window.location.href = `/success?transactionId=${encodeURIComponent(data.orderId)}&manual=1${CHECKOUT_IS_PREBOOK ? '&prebook=1' : ''}`;
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = 'Submit order for payment verification';
+    btn.textContent = CHECKOUT_IS_PREBOOK ? 'Submit pre-book advance for verification' : 'Submit order for payment verification';
     errDiv.textContent = 'Error: ' + err.message + '. Please try again.';
     errDiv.style.display = 'block';
   }

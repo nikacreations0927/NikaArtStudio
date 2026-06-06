@@ -51,11 +51,17 @@ async function getOrder(id) {
     subtotal: order.subtotal,
     shipping: order.shipping,
     total: order.total,
+    orderType: order.order_type || 'STANDARD',
+    advanceAmount: order.advance_amount || 0,
+    balanceAmount: order.balance_amount || 0,
     paymentStatus: order.payment_status,
     fulfillmentStatus: order.fulfillment_status,
     logisticsStatus: order.logistics_status,
     paymentProvider: order.payment_provider,
     providerTransactionId: order.provider_transaction_id,
+    balanceProviderTransactionId: order.balance_provider_transaction_id,
+    balanceRequestedAt: order.balance_requested_at,
+    balancePaidAt: order.balance_paid_at,
     shiprocketOrderId: order.shiprocket_order_id,
     shiprocketShipmentId: order.shiprocket_shipment_id,
     createdAt: order.created_at,
@@ -70,6 +76,12 @@ async function createOrderFromCart(cart, customer, options = {}) {
   }
 
   const orderId = options.id || 'ORD' + Date.now() + Math.floor(Math.random() * 1000);
+  const hasPrebookItems = cart.some(item => item.prebook === true || item.orderType === 'PREBOOK');
+  const hasStandardItems = cart.some(item => !(item.prebook === true || item.orderType === 'PREBOOK'));
+  if (hasPrebookItems && hasStandardItems) {
+    throw new Error('Pre-book products must be checked out separately from in-stock products.');
+  }
+  const orderType = hasPrebookItems ? 'PREBOOK' : 'STANDARD';
 
   await db.transaction(async (tx) => {
     const validatedItems = [];
@@ -84,8 +96,11 @@ async function createOrderFromCart(cart, customer, options = {}) {
       if (!product || !product.isActive) {
         throw new Error(`Product is unavailable: ${productId}`);
       }
-      if (product.stock < qty) {
+      if (orderType === 'STANDARD' && product.stock < qty) {
         throw new Error(`Only ${product.stock} left in stock for ${product.name}.`);
+      }
+      if (orderType === 'PREBOOK' && product.stock > 0) {
+        throw new Error(`${product.name} is currently in stock. Please add it to cart normally.`);
       }
 
       validatedItems.push({
@@ -100,17 +115,26 @@ async function createOrderFromCart(cart, customer, options = {}) {
     const subtotal = validatedItems.reduce((sum, item) => sum + item.lineTotal, 0);
     const shipping = calculateShipping(subtotal);
     const total = subtotal + shipping;
+    const advanceAmount = orderType === 'PREBOOK' ? Math.ceil(subtotal / 2) : 0;
+    const balanceAmount = orderType === 'PREBOOK' ? total - advanceAmount : 0;
 
     await tx.run(`
-      INSERT INTO orders (id, customer_json, subtotal, shipping, total, payment_status, fulfillment_status, logistics_status, payment_provider)
-      VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'NOT_CREATED', ?)
+      INSERT INTO orders (
+        id, customer_json, subtotal, shipping, total, order_type, advance_amount, balance_amount,
+        payment_status, fulfillment_status, logistics_status, payment_provider
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_CREATED', ?)
     `, [
       orderId,
       JSON.stringify(customer),
       subtotal,
       shipping,
       total,
+      orderType,
+      advanceAmount,
+      balanceAmount,
       options.paymentStatus || 'PENDING',
+      options.fulfillmentStatus || 'PENDING',
       options.paymentProvider || 'Manual UPI'
     ]);
 
@@ -231,6 +255,123 @@ async function markOrderPaid(orderId, providerTransactionId = null, raw = null, 
     } else {
       await tx.run(`UPDATE orders SET payment_status = 'PAID', payment_provider = ?, provider_transaction_id = COALESCE(?, provider_transaction_id), updated_at = ${nowSql} WHERE id = ?`, [provider, providerTransactionId, orderId]);
     }
+  });
+
+  return getOrder(orderId);
+}
+
+async function markPrebookAdvancePaid(orderId, providerTransactionId = null, raw = null, options = {}) {
+  const order = await getOrder(orderId);
+  if (!order) return null;
+  if (order.orderType !== 'PREBOOK') {
+    throw new Error('This order is not a pre-book order.');
+  }
+  const provider = options.provider || order.paymentProvider || 'Manual UPI';
+
+  await db.run(`
+    INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json)
+    VALUES (?, ?, ?, 'PREBOOK_ADVANCE_PAID', ?)
+  `, [orderId, provider, providerTransactionId, raw ? JSON.stringify(raw) : '']);
+
+  await db.run(`
+    UPDATE orders
+    SET payment_status = 'PREBOOK_ADVANCE_PAID',
+        payment_provider = ?,
+        provider_transaction_id = COALESCE(?, provider_transaction_id),
+        fulfillment_status = 'PREBOOK_WAITING_STOCK',
+        updated_at = ${nowSql}
+    WHERE id = ?
+  `, [provider, providerTransactionId, orderId]);
+
+  return getOrder(orderId);
+}
+
+async function requestPrebookBalance(orderId) {
+  const order = await getOrder(orderId);
+  if (!order) return null;
+  if (order.orderType !== 'PREBOOK') throw new Error('This order is not a pre-book order.');
+  if (order.paymentStatus !== 'PREBOOK_ADVANCE_PAID' && order.paymentStatus !== 'PREBOOK_BALANCE_REQUESTED') {
+    throw new Error('Advance payment must be verified before requesting the balance.');
+  }
+
+  for (const item of order.items) {
+    const product = rowToProduct(await db.get('SELECT * FROM products WHERE id = ?', [item.productId]));
+    if (!product || product.stock < item.qty) {
+      throw new Error(`Stock is not available yet for ${item.name}.`);
+    }
+  }
+
+  await db.run(`
+    UPDATE orders
+    SET payment_status = 'PREBOOK_BALANCE_REQUESTED',
+        fulfillment_status = 'PREBOOK_READY_FOR_BALANCE',
+        balance_requested_at = ${nowSql},
+        updated_at = ${nowSql}
+    WHERE id = ?
+  `, [orderId]);
+
+  return getOrder(orderId);
+}
+
+async function submitPrebookBalanceReference(orderId, providerTransactionId) {
+  const order = await getOrder(orderId);
+  if (!order) return null;
+  if (order.orderType !== 'PREBOOK') throw new Error('This order is not a pre-book order.');
+  if (order.paymentStatus !== 'PREBOOK_BALANCE_REQUESTED' && order.paymentStatus !== 'PREBOOK_BALANCE_PENDING') {
+    throw new Error('Balance payment has not been requested for this pre-book order.');
+  }
+
+  await db.run(`
+    INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json)
+    VALUES (?, 'Manual UPI', ?, 'PREBOOK_BALANCE_PENDING', ?)
+  `, [orderId, providerTransactionId, JSON.stringify({ submittedByCustomer: true, stage: 'balance' })]);
+
+  await db.run(`
+    UPDATE orders
+    SET payment_status = 'PREBOOK_BALANCE_PENDING',
+        balance_provider_transaction_id = ?,
+        updated_at = ${nowSql}
+    WHERE id = ?
+  `, [providerTransactionId, orderId]);
+
+  return getOrder(orderId);
+}
+
+async function markPrebookBalancePaid(orderId, providerTransactionId = null, raw = null, options = {}) {
+  const order = await getOrder(orderId);
+  if (!order) return null;
+  if (order.orderType !== 'PREBOOK') throw new Error('This order is not a pre-book order.');
+  if (order.paymentStatus === 'PAID') return order;
+  if (order.paymentStatus !== 'PREBOOK_BALANCE_PENDING') {
+    throw new Error('Customer must submit the balance UPI reference before final verification.');
+  }
+  const provider = options.provider || order.paymentProvider || 'Manual UPI';
+
+  await db.transaction(async (tx) => {
+    for (const item of order.items) {
+      const product = rowToProduct(await tx.get('SELECT * FROM products WHERE id = ?', [item.productId]));
+      if (!product || product.stock < item.qty) {
+        throw new Error(`Insufficient stock for ${item.name}.`);
+      }
+      await tx.run(`UPDATE products SET stock = stock - ?, updated_at = ${nowSql} WHERE id = ?`, [item.qty, item.productId]);
+      await tx.run("INSERT INTO inventory_events (product_id, order_id, type, quantity_delta, note) VALUES (?, ?, 'PREBOOK_FULFILLED', ?, 'Stock reduced after pre-book balance verification')", [item.productId, orderId, -item.qty]);
+    }
+
+    await tx.run(`
+      INSERT INTO payments (order_id, provider, provider_transaction_id, status, raw_json)
+      VALUES (?, ?, ?, 'PREBOOK_BALANCE_PAID', ?)
+    `, [orderId, provider, providerTransactionId, raw ? JSON.stringify(raw) : '']);
+
+    await tx.run(`
+      UPDATE orders
+      SET payment_status = 'PAID',
+          payment_provider = ?,
+          balance_provider_transaction_id = COALESCE(?, balance_provider_transaction_id),
+          balance_paid_at = ${nowSql},
+          fulfillment_status = 'READY_FOR_SHIPPING',
+          updated_at = ${nowSql}
+      WHERE id = ?
+    `, [provider, providerTransactionId, orderId]);
   });
 
   return getOrder(orderId);
@@ -381,6 +522,10 @@ module.exports = {
   listOrders,
   createOrderFromCart,
   markOrderPaid,
+  markPrebookAdvancePaid,
+  markPrebookBalancePaid,
+  requestPrebookBalance,
+  submitPrebookBalanceReference,
   cancelPaidOrder,
   recordLogistics,
   recordPayment,

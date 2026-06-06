@@ -31,6 +31,10 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 
+pool.on('error', (err) => {
+  console.error('Postgres idle client error:', err.message);
+});
+
 const dataDir = path.join(__dirname, '..', 'data');
 const cloudinaryProductCsvPath = path.join(dataDir, 'keychain-cloudinary-products.csv');
 const nowSql = 'CURRENT_TIMESTAMP';
@@ -179,6 +183,12 @@ async function initSchema() {
       subtotal INTEGER NOT NULL DEFAULT 0,
       shipping INTEGER NOT NULL DEFAULT 0,
       total INTEGER NOT NULL DEFAULT 0,
+      order_type TEXT NOT NULL DEFAULT 'STANDARD',
+      advance_amount INTEGER NOT NULL DEFAULT 0,
+      balance_amount INTEGER NOT NULL DEFAULT 0,
+      balance_provider_transaction_id TEXT,
+      balance_requested_at TIMESTAMPTZ,
+      balance_paid_at TIMESTAMPTZ,
       payment_status TEXT NOT NULL DEFAULT 'PENDING',
       fulfillment_status TEXT NOT NULL DEFAULT 'PENDING',
       logistics_status TEXT NOT NULL DEFAULT 'NOT_CREATED',
@@ -236,6 +246,15 @@ async function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items (order_id);
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_expiry ON admin_sessions (expires_at);
     CREATE INDEX IF NOT EXISTS idx_customer_sessions_expiry ON customer_sessions (expires_at);
+  `);
+
+  await pool.query(`
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'STANDARD';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS advance_amount INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_amount INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_provider_transaction_id TEXT;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_requested_at TIMESTAMPTZ;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_paid_at TIMESTAMPTZ;
   `);
 }
 

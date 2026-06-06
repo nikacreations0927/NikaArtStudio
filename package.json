@@ -11,6 +11,7 @@
     "db:migrate:sqlite": "node --no-warnings scripts/migrate-sqlite-to-postgres.js",
     "db:migrate:supabase-safe": "node --no-warnings scripts/migrate-sqlite-to-supabase-safe.js",
     "test:e2e:smoke": "node --no-warnings scripts/smoke-e2e.js",
+    "test:shiprocket-mock": "node --no-warnings scripts/test-shiprocket-mock.js",
     "admin:seed": "node scripts/seed-admin-user.js"
   },
   "dependencies": {

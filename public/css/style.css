@@ -799,6 +799,30 @@ body {
   color: var(--charcoal);
   font-family: var(--font-body);
 }
+.dashboard-controls.single-control {
+  grid-template-columns: minmax(240px, 520px);
+}
+.dashboard-controls.compact-control {
+  grid-template-columns: minmax(180px, 260px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  margin: 0.75rem 0 1rem;
+}
+.panel-subtitle-block {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0.9rem;
+}
+.panel-subtitle-block h4 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.35rem;
+}
+.panel-subtitle-block p {
+  margin: 0;
+  color: var(--muted);
+}
 .product-report-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
@@ -823,6 +847,59 @@ body {
   margin-top: 0.25rem;
   font-family: var(--font-head);
   font-size: 1.5rem;
+}
+.product-sales-chart {
+  margin-top: 1rem;
+}
+.collapsible-panel {
+  padding: 0;
+  overflow: hidden;
+}
+.collapsible-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  cursor: pointer;
+  list-style: none;
+}
+.collapsible-panel summary::-webkit-details-marker {
+  display: none;
+}
+.collapsible-panel summary::after {
+  content: "+";
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--terra);
+  font-weight: 700;
+}
+.collapsible-panel[open] summary::after {
+  content: "-";
+}
+.collapsible-panel summary strong {
+  display: block;
+  font-family: var(--font-head);
+  font-size: 1.25rem;
+  color: var(--charcoal);
+}
+.collapsible-panel summary small {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.collapsible-content {
+  display: grid;
+  gap: 1rem;
+  padding: 0 1.1rem 1.1rem;
+}
+.nested-title-row h3 {
+  margin-bottom: 0.25rem;
 }
 .sales-chart {
   display: grid;
@@ -891,6 +968,23 @@ body {
   border-radius: 8px;
 }
 .sales-table-wrap .admin-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--white);
+}
+.order-page-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.all-orders-table-wrap {
+  max-height: 72vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.all-orders-table-wrap .admin-table th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1535,6 +1629,20 @@ body {
 
 .cart-note {
   color: var(--muted);
+}
+.prebook-note,
+.prebook-inline-note {
+  margin: 0.6rem 0 0;
+  color: var(--terra);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.prebook-inline-note {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+.prebook-balance-card {
+  margin: 1rem 0;
 }
 
 .product-detail {

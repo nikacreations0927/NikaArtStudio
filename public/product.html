@@ -6,7 +6,7 @@
   <title>Product - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=site-assets-1" />
+  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
 </head>
 <body>
 <header class="site-header">
@@ -63,10 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <h1>${escapeHtml(product.name)}</h1>
         <p class="product-detail-price">${rupees(product.price)}</p>
         <p>${escapeHtml(product.description || 'Handcrafted piece from Nika Arts Studio.')}</p>
-        <p class="stock-note">${isOut ? 'Out of stock' : `${product.stock} available`}</p>
+        <p class="stock-note">${isOut ? `Out of stock. Pre-book with ${rupees(prebookAdvanceAmount(product.price))} advance.` : `${product.stock} available`}</p>
         <div class="product-detail-actions">
-          <button class="btn-primary" ${isOut ? 'disabled' : ''} onclick="addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})">
-            ${isOut ? 'Out of stock' : 'Add to cart'}
+          <button class="btn-primary" onclick="${isOut ? `addPrebookToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})` : `addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})`}">
+            ${isOut ? 'Pre-book now' : 'Add to cart'}
           </button>
           <a class="btn-outline" href="/shop">Back to collection</a>
         </div>
