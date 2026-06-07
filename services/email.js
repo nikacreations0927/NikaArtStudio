@@ -11,6 +11,7 @@ const BRAND = {
   white: '#FFFFFF'
 };
 const EMAIL_SEND_TIMEOUT_MS = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
+const RESEND_API_URL = 'https://api.resend.com/emails';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -24,12 +25,39 @@ const transporter = nodemailer.createTransport({
 });
 
 function hasEmailConfig() {
+  return hasResendConfig() || hasSmtpConfig();
+}
+
+function hasSmtpConfig() {
   return Boolean(
     process.env.EMAIL_USER &&
     process.env.EMAIL_PASS &&
     !String(process.env.EMAIL_USER).startsWith('your.') &&
     !String(process.env.EMAIL_PASS).startsWith('your-')
   );
+}
+
+function hasResendConfig() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+}
+
+function emailProviderStatus() {
+  return {
+    configured: hasEmailConfig(),
+    primaryProvider: hasResendConfig() ? 'resend' : hasSmtpConfig() ? 'gmail_smtp' : 'none',
+    resendConfigured: hasResendConfig(),
+    smtpConfigured: hasSmtpConfig(),
+    emailUserPresent: Boolean(process.env.EMAIL_USER),
+    emailPassPresent: Boolean(process.env.EMAIL_PASS),
+    resendApiKeyPresent: Boolean(process.env.RESEND_API_KEY),
+    resendFromEmailPresent: Boolean(process.env.RESEND_FROM_EMAIL),
+    fromDomain: process.env.RESEND_FROM_EMAIL
+      ? String(process.env.RESEND_FROM_EMAIL).split('@').pop().replace(/[>]/g, '')
+      : String(process.env.EMAIL_USER || '').includes('@')
+        ? String(process.env.EMAIL_USER).split('@').pop()
+        : '',
+    notificationEmail: adminNotificationEmail()
+  };
 }
 
 function rupees(value) {
@@ -165,12 +193,12 @@ function brandedEmail({ title, preheader, children, cta }) {
 
 async function sendMailSafely(mailOptions, logLabel) {
   if (!hasEmailConfig()) {
-    console.warn(`${logLabel} skipped because EMAIL_USER/EMAIL_PASS are not configured.`);
+    console.warn(`${logLabel} skipped because no email provider is configured.`);
     return false;
   }
 
   try {
-    await sendMailWithTimeout(mailOptions, logLabel);
+    await sendMail(mailOptions, logLabel);
     console.log(`${logLabel} sent.`);
     return true;
   } catch (err) {
@@ -179,7 +207,25 @@ async function sendMailSafely(mailOptions, logLabel) {
   }
 }
 
-function sendMailWithTimeout(mailOptions, logLabel) {
+async function sendMail(mailOptions, logLabel) {
+  if (hasResendConfig()) {
+    try {
+      return await sendWithResend(mailOptions, logLabel);
+    } catch (err) {
+      console.error(`${logLabel} Resend send failed:`, err);
+      if (!hasSmtpConfig()) throw err;
+      console.warn(`${logLabel} falling back to Gmail SMTP.`);
+    }
+  }
+
+  if (hasSmtpConfig()) {
+    return sendSmtpWithTimeout(mailOptions, logLabel);
+  }
+
+  throw new Error('No email provider configured.');
+}
+
+function sendSmtpWithTimeout(mailOptions, logLabel) {
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
@@ -193,17 +239,88 @@ function sendMailWithTimeout(mailOptions, logLabel) {
     .finally(() => clearTimeout(timeoutId));
 }
 
+async function sendWithResend(mailOptions, logLabel) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), EMAIL_SEND_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: resendFromAddress(),
+        to: normalizeRecipients(mailOptions.to),
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+        text: mailOptions.text,
+        reply_to: process.env.RESEND_REPLY_TO || process.env.EMAIL_USER || undefined
+      }),
+      signal: controller.signal
+    });
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
+    }
+
+    if (!response.ok) {
+      const err = new Error(data.message || data.error || `${logLabel} failed with Resend status ${response.status}`);
+      err.code = 'RESEND_SEND_FAILED';
+      err.responseCode = response.status;
+      err.response = raw;
+      throw err;
+    }
+
+    return {
+      provider: 'resend',
+      messageId: data.id || '',
+      accepted: normalizeRecipients(mailOptions.to),
+      rejected: [],
+      response: raw
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(`${logLabel} timed out after ${EMAIL_SEND_TIMEOUT_MS}ms`);
+      timeoutErr.code = 'RESEND_SEND_TIMEOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function resendFromAddress() {
+  const configured = String(process.env.RESEND_FROM_EMAIL || '').trim();
+  if (!configured) return '';
+  if (configured.includes('<')) return configured;
+  return `${process.env.RESEND_FROM_NAME || 'Nika Arts Studio'} <${configured}>`;
+}
+
+function normalizeRecipients(value) {
+  if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
 async function sendDiagnosticEmail(toAddress) {
   if (!hasEmailConfig()) {
     return {
       success: false,
-      message: 'EMAIL_USER/EMAIL_PASS are not configured.'
+      message: 'No email provider is configured.'
     };
   }
 
   const to = toAddress || adminNotificationEmail();
   try {
-    const info = await sendMailWithTimeout({
+    const info = await sendMail({
       from: `"Nika Arts Studio" <${process.env.EMAIL_USER}>`,
       to,
       subject: `Nika Arts Studio email test - ${new Date().toISOString()}`,
@@ -219,6 +336,7 @@ async function sendDiagnosticEmail(toAddress) {
 
     return {
       success: true,
+      provider: info.provider || (hasResendConfig() ? 'resend' : 'gmail_smtp'),
       messageId: info.messageId || '',
       accepted: info.accepted || [],
       rejected: info.rejected || [],
@@ -491,6 +609,9 @@ async function sendPrebookBalanceRequest(customer, order) {
 
 module.exports = {
   hasEmailConfig,
+  hasResendConfig,
+  hasSmtpConfig,
+  emailProviderStatus,
   sendCustomerReceipt,
   sendAdminNotification,
   sendPasswordResetEmail,

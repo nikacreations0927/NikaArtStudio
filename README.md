@@ -201,11 +201,22 @@ Leave `ADMIN_API_KEY` blank unless a trusted automation script needs admin API a
 ```bash
 CUSTOMER_SESSION_DAYS=30
 PASSWORD_RESET_MINUTES=30
+
+# Preferred production email provider on Render
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL=orders@yourdomain.com
+RESEND_FROM_NAME=Nika Arts Studio
+RESEND_REPLY_TO=your-email@gmail.com
+ORDER_NOTIFICATION_EMAIL=nika.creations0927@gmail.com
+
+# Gmail SMTP fallback/local development
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-gmail-app-password
+EMAIL_SEND_TIMEOUT_MS=30000
+ORDER_EMAIL_TIMEOUT_MS=35000
 ```
 
-Password reset emails require `EMAIL_USER`, `EMAIL_PASS`, and `BASE_URL`.
+Production order, password reset, and admin notification emails use Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured. Gmail SMTP remains as a fallback when `EMAIL_USER` and `EMAIL_PASS` are configured, but SMTP may time out on some hosting networks. Email links require `BASE_URL`.
 
 ### Shipping
 
