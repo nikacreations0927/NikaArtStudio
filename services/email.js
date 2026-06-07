@@ -261,22 +261,19 @@ async function sendDiagnosticOrderEmails(toAddress) {
     items: [{ productId: 'TEST', name: 'Diagnostic Keychain', price: 499, qty: 1, lineTotal: 499 }]
   };
 
-  const [adminResult, customerResult] = await Promise.allSettled([
-    sendOrderPlacedAdminEmail(customer, order, { stage: 'full' }),
-    sendOrderPlacedCustomerEmail(customer, order, { stage: 'full' })
-  ]);
+  const adminSent = await sendOrderPlacedAdminEmail(customer, order, { stage: 'full' });
+  const customerSent = await sendOrderPlacedCustomerEmail(customer, order, { stage: 'full' });
 
   return {
-    success: adminResult.status === 'fulfilled' && adminResult.value === true
-      && customerResult.status === 'fulfilled' && customerResult.value === true,
+    success: adminSent === true && customerSent === true,
     orderId: order.id,
     admin: {
-      success: adminResult.status === 'fulfilled' && adminResult.value === true,
-      error: adminResult.status === 'rejected' ? adminResult.reason?.message || 'failed' : ''
+      success: adminSent === true,
+      error: ''
     },
     customer: {
-      success: customerResult.status === 'fulfilled' && customerResult.value === true,
-      error: customerResult.status === 'rejected' ? customerResult.reason?.message || 'failed' : ''
+      success: customerSent === true,
+      error: ''
     }
   };
 }

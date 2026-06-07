@@ -15,30 +15,27 @@ function normalizeReference(value) {
   return String(value || '').trim().slice(0, 80);
 }
 
-function sendOrderPlacedEmails(customer, order, options = {}) {
-  return Promise.allSettled([
-    sendOrderPlacedAdminEmail(customer, order, options),
-    sendOrderPlacedCustomerEmail(customer, order, options)
-  ]).then(([adminResult, customerResult]) => {
+async function sendOrderPlacedEmails(customer, order, options = {}) {
+  try {
+    const adminSent = await sendOrderPlacedAdminEmail(customer, order, options);
+    const customerSent = await sendOrderPlacedCustomerEmail(customer, order, options);
     const status = {
-      admin: adminResult.status === 'fulfilled' && adminResult.value === true,
-      customer: customerResult.status === 'fulfilled' && customerResult.value === true
+      admin: adminSent === true,
+      customer: customerSent === true
     };
 
     if (!status.admin || !status.customer) {
       console.error('Order email notification incomplete:', {
         orderId: order.id,
-        status,
-        adminError: adminResult.status === 'rejected' ? adminResult.reason?.message : null,
-        customerError: customerResult.status === 'rejected' ? customerResult.reason?.message : null
+        status
       });
     }
 
     return status;
-  }).catch(err => {
+  } catch (err) {
     console.error('Order email notification failed:', { orderId: order.id, error: err.message });
     return { admin: false, customer: false };
-  });
+  }
 }
 
 async function sendOrderPlacedEmailsWithTimeout(customer, order, options = {}) {
