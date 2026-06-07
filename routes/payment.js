@@ -6,7 +6,7 @@ const { sendOrderPlacedAdminEmail, sendOrderPlacedCustomerEmail } = require('../
 const { optionalCustomer } = require('../middleware/customerAuth');
 
 const router = express.Router();
-const ORDER_EMAIL_TIMEOUT_MS = Number(process.env.ORDER_EMAIL_TIMEOUT_MS || 10000);
+const ORDER_EMAIL_TIMEOUT_MS = Number(process.env.ORDER_EMAIL_TIMEOUT_MS || 35000);
 
 // PhonePe gateway integration is intentionally inactive until the merchant
 // account is approved. The checkout currently uses manual UPI verification.

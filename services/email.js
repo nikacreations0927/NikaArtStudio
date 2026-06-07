@@ -10,7 +10,7 @@ const BRAND = {
   border: '#DDD9C8',
   white: '#FFFFFF'
 };
-const EMAIL_SEND_TIMEOUT_MS = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 12000);
+const EMAIL_SEND_TIMEOUT_MS = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
