@@ -10,9 +10,13 @@ const BRAND = {
   border: '#DDD9C8',
   white: '#FFFFFF'
 };
+const EMAIL_SEND_TIMEOUT_MS = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 12000);
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  connectionTimeout: EMAIL_SEND_TIMEOUT_MS,
+  greetingTimeout: EMAIL_SEND_TIMEOUT_MS,
+  socketTimeout: EMAIL_SEND_TIMEOUT_MS,
   auth: {
     user: process.env.EMAIL_USER || 'your.nika.arts.email@gmail.com',
     pass: process.env.EMAIL_PASS || 'your-16-digit-app-password'
@@ -166,13 +170,27 @@ async function sendMailSafely(mailOptions, logLabel) {
   }
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sendMailWithTimeout(mailOptions, logLabel);
     console.log(`${logLabel} sent.`);
     return true;
   } catch (err) {
     console.error(`${logLabel} failed:`, err);
     return false;
   }
+}
+
+function sendMailWithTimeout(mailOptions, logLabel) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const err = new Error(`${logLabel} timed out after ${EMAIL_SEND_TIMEOUT_MS}ms`);
+      err.code = 'EMAIL_SEND_TIMEOUT';
+      reject(err);
+    }, EMAIL_SEND_TIMEOUT_MS);
+  });
+
+  return Promise.race([transporter.sendMail(mailOptions), timeoutPromise])
+    .finally(() => clearTimeout(timeoutId));
 }
 
 async function sendDiagnosticEmail(toAddress) {
@@ -185,7 +203,7 @@ async function sendDiagnosticEmail(toAddress) {
 
   const to = toAddress || adminNotificationEmail();
   try {
-    const info = await transporter.sendMail({
+    const info = await sendMailWithTimeout({
       from: `"Nika Arts Studio" <${process.env.EMAIL_USER}>`,
       to,
       subject: `Nika Arts Studio email test - ${new Date().toISOString()}`,
@@ -197,7 +215,7 @@ async function sendDiagnosticEmail(toAddress) {
           <p style="margin:0; color:${BRAND.muted}; font-size:14px;">If you received this, Gmail delivery from the website server is working.</p>
         `
       })
-    });
+    }, 'Diagnostic email');
 
     return {
       success: true,
