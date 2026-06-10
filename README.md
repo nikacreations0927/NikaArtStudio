@@ -212,11 +212,12 @@ ORDER_NOTIFICATION_EMAIL=nika.creations0927@gmail.com
 # Gmail SMTP fallback/local development
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-gmail-app-password
+EMAIL_ALLOW_SMTP_FALLBACK=false
 EMAIL_SEND_TIMEOUT_MS=30000
 ORDER_EMAIL_TIMEOUT_MS=35000
 ```
 
-Production order, password reset, and admin notification emails use Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured. Gmail SMTP remains as a fallback when `EMAIL_USER` and `EMAIL_PASS` are configured, but SMTP may time out on some hosting networks. Email links require `BASE_URL`.
+Production order, password reset, and admin notification emails use Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured. Gmail SMTP remains useful for local development; enable `EMAIL_ALLOW_SMTP_FALLBACK=true` only if you explicitly want Gmail SMTP fallback after a Resend failure. Email links require `BASE_URL`.
 
 ### Shipping
 

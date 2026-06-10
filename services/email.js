@@ -213,7 +213,7 @@ async function sendMail(mailOptions, logLabel) {
       return await sendWithResend(mailOptions, logLabel);
     } catch (err) {
       console.error(`${logLabel} Resend send failed:`, err);
-      if (!hasSmtpConfig()) throw err;
+      if (!hasSmtpConfig() || process.env.EMAIL_ALLOW_SMTP_FALLBACK !== 'true') throw err;
       console.warn(`${logLabel} falling back to Gmail SMTP.`);
     }
   }
