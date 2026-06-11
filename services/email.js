@@ -99,6 +99,7 @@ function orderItemsTable(order = {}) {
     <tr>
       <td style="padding: 12px 10px; border-bottom: 1px solid ${BRAND.border};">
         <strong style="color:${BRAND.green};">${escapeHtml(item.name)}</strong><br>
+        ${item.selectedColor || item.color ? `<span style="color:${BRAND.muted}; font-size: 13px;">Colour: ${escapeHtml(item.selectedColor || item.color)}</span><br>` : ''}
         <span style="color:${BRAND.muted}; font-size: 13px;">Qty ${Number(item.qty || 0)} x ${rupees(item.price)}</span>
       </td>
       <td style="padding: 12px 10px; border-bottom: 1px solid ${BRAND.border}; text-align: right; color:${BRAND.green}; font-weight:700;">

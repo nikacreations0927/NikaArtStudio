@@ -50,9 +50,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!data.success || !data.product || !data.product.isActive) throw new Error('Product unavailable.');
 
     const product = data.product;
+    PRODUCTS = [product];
     document.title = `${product.name} - Nika Arts Studio`;
     const img = product.image || 'https://via.placeholder.com/700?text=Art';
     const isOut = Number(product.stock || 0) <= 0;
+    const colors = normalizeColorOptions(product.colorOptions);
 
     detail.innerHTML = `
       <div class="product-detail-media">
@@ -64,8 +66,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <p class="product-detail-price">${rupees(product.price)}</p>
         <p>${escapeHtml(product.description || 'Handcrafted piece from Nika Arts Studio.')}</p>
         <p class="stock-note">${isOut ? `Out of stock. Pre-book with ${rupees(prebookAdvanceAmount(product.price))} advance.` : `${product.stock} available`}</p>
+        ${colors.length ? `<div class="product-detail-colors">${productColorSelector(product)}</div>` : ''}
         <div class="product-detail-actions">
-          <button class="btn-primary" onclick="${isOut ? `addPrebookToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})` : `addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})`}">
+          <button class="btn-primary" onclick="addProductCardToCart('${escapeJsString(product.id)}', ${isOut ? 'true' : 'false'})">
             ${isOut ? 'Pre-book now' : 'Add to cart'}
           </button>
           <a class="btn-outline" href="/shop">Back to collection</a>

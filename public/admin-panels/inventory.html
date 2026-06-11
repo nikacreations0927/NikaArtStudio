@@ -67,6 +67,11 @@
       <input id="new-price" required type="number" min="0" placeholder="Price (Rs.)" />
       <input id="new-stock" required type="number" min="0" placeholder="Initial stock" />
       <input id="new-description" placeholder="Short description" />
+      <select id="new-has-colors" onchange="toggleNewColorOptions()">
+        <option value="no">Single colour / no colour choice</option>
+        <option value="yes">Customer can choose colour</option>
+      </select>
+      <input id="new-color-options" placeholder="Available colours, comma separated eg Yellow, Blue, Green" hidden />
       <button class="btn-primary" type="submit">Save Product</button>
     </form>
   </div>

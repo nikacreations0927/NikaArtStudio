@@ -621,8 +621,8 @@ function filterInventoryTable() {
 
 // --- Bulk CSV Logic ---
 function downloadCSVTemplate() {
-  const headers = "Name,Category,Price,Stock,Image,Description\n";
-  const sampleData = "Blue Ocean Resin Art,Resin,1299,5,https://res.cloudinary.com/demo/image/upload/sample.jpg,Hand poured resin on wood\nCrochet Sunflower,Crochet,449,15,,Handmade yarn flower";
+  const headers = "Name,Category,Price,Stock,Image,Description,Colors\n";
+  const sampleData = "Beer Happy Mug Keychain,Keychains,499,5,https://res.cloudinary.com/demo/image/upload/sample.jpg,Handmade crochet beer happy mug keychain,\"Yellow, Blue, Green\"\nCrochet Sunflower,Crochet,449,15,,Handmade yarn flower,";
   
   const blob = new Blob([headers + sampleData], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
@@ -757,6 +757,7 @@ async function handleBulkCSV(event) {
       const stockIndex = indexOf('stock', 'quantity') ?? 3;
       const imageIndex = indexOf('image', 'image url', 'image_url');
       const descriptionIndex = indexOf('description', 'desc') ?? (imageIndex === 4 ? 5 : 4);
+      const colorsIndex = indexOf('colors', 'colours', 'color options', 'colour options');
 
       // Skip header row (index 0) and filter out empty rows
       const products = rows.slice(1).filter(row => row.length >= 4 && row[nameIndex] !== '').map(row => ({
@@ -765,7 +766,8 @@ async function handleBulkCSV(event) {
         price: parseInt(row[priceIndex], 10) || 0,
         stock: parseInt(row[stockIndex], 10) || 0,
         image: imageIndex === undefined ? '' : row[imageIndex] || '',
-        description: row[descriptionIndex] || ''
+        description: row[descriptionIndex] || '',
+        colors: colorsIndex === undefined ? '' : row[colorsIndex] || ''
       }));
 
       if (products.length === 0) throw new Error("No valid products found in CSV.");
@@ -798,6 +800,54 @@ function categoryFilterOptions() {
   return ADMIN_CATEGORIES.map(category => `<option value="${escapeHtml(category.name)}">${escapeHtml(category.name)}</option>`).join('');
 }
 
+function normalizeColorOptions(value) {
+  const raw = Array.isArray(value) ? value : String(value || '').split(/[,\n|]/);
+  const seen = new Set();
+  return raw
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .filter(item => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function colorOptionsSummary(product) {
+  const colors = normalizeColorOptions(product.colorOptions || product.colors);
+  if (!colors.length) return '';
+  return `<small class="product-row-colors">Colours: ${colors.map(escapeHtml).join(', ')}</small>`;
+}
+
+function toggleNewColorOptions() {
+  const select = document.getElementById('new-has-colors');
+  const input = document.getElementById('new-color-options');
+  if (!select || !input) return;
+  const enabled = select.value === 'yes';
+  input.hidden = !enabled;
+  if (!enabled) input.value = '';
+}
+
+function toggleEditColorOptions() {
+  const select = document.getElementById('edit-product-has-colors');
+  const label = document.getElementById('edit-product-colors-label');
+  const input = document.getElementById('edit-product-color-options');
+  if (!select || !label || !input) return;
+  const enabled = select.value === 'yes';
+  label.hidden = !enabled;
+  if (!enabled) input.value = '';
+}
+
+function setProductColorFields(colors = []) {
+  const normalized = normalizeColorOptions(colors);
+  const select = document.getElementById('edit-product-has-colors');
+  const input = document.getElementById('edit-product-color-options');
+  if (select) select.value = normalized.length ? 'yes' : 'no';
+  if (input) input.value = normalized.join(', ');
+  toggleEditColorOptions();
+}
+
 function stockBadge(product) {
   if (product.stock <= 0) return '<span class="inventory-badge danger">Out</span>';
   if (product.stock <= 3) return '<span class="inventory-badge warn">Low</span>';
@@ -812,7 +862,7 @@ function statusBadge(product) {
 
 function productMatchesInventoryFilters(product) {
   const query = INVENTORY_STATE.query;
-  const matchesQuery = !query || `${product.name} ${product.category} ${product.description || ''}`.toLowerCase().includes(query);
+  const matchesQuery = !query || `${product.name} ${product.category} ${product.description || ''} ${normalizeColorOptions(product.colorOptions).join(' ')}`.toLowerCase().includes(query);
   const matchesCategory = !INVENTORY_STATE.category || product.category === INVENTORY_STATE.category;
   const matchesStatus = INVENTORY_STATE.status === 'all'
     || (INVENTORY_STATE.status === 'active' && product.isActive)
@@ -881,6 +931,7 @@ function renderInventoryTable() {
       <td>
         <strong class="product-row-name">${escapeHtml(product.name)}</strong>
         <small>${escapeHtml(product.description || 'No description')}</small>
+        ${colorOptionsSummary(product)}
       </td>
       <td>${escapeHtml(product.category)}</td>
       <td>${rupees(product.price)}</td>
@@ -951,7 +1002,7 @@ function exportProductsCsv() {
     return;
   }
   const rows = [
-    ['ID', 'Name', 'Category', 'Price', 'Stock', 'Active', 'Image', 'Description'],
+    ['ID', 'Name', 'Category', 'Price', 'Stock', 'Active', 'Image', 'Description', 'Colors'],
     ...ADMIN_PRODUCTS.map(product => [
       product.id,
       product.name,
@@ -960,7 +1011,8 @@ function exportProductsCsv() {
       product.stock,
       product.isActive ? 'yes' : 'no',
       product.image,
-      product.description
+      product.description,
+      normalizeColorOptions(product.colorOptions).join(', ')
     ])
   ];
   downloadCsv('nika_products.csv', rows);
@@ -992,10 +1044,14 @@ async function addProduct(event) {
         category,
         price: Number(document.getElementById('new-price').value),
         stock: Number(document.getElementById('new-stock').value),
-        description: document.getElementById('new-description').value
+        description: document.getElementById('new-description').value,
+        colorOptions: document.getElementById('new-has-colors')?.value === 'yes'
+          ? normalizeColorOptions(document.getElementById('new-color-options')?.value)
+          : []
       })
     });
     event.target.reset();
+    toggleNewColorOptions();
     showMessage('Product added.');
     await loadProductsAdmin();
   } catch (err) { showMessage(err.message, true); }
@@ -1028,6 +1084,7 @@ function openProductEditor(id) {
   document.getElementById('edit-product-price').value = product.price;
   document.getElementById('edit-product-stock').value = product.stock;
   document.getElementById('edit-product-active').value = String(Boolean(product.isActive));
+  setProductColorFields(product.colorOptions || []);
   document.getElementById('edit-product-image-url').value = product.image || '';
   document.getElementById('edit-product-image-file').value = '';
   setProductEditorPreview(product.image);
@@ -1055,6 +1112,9 @@ async function saveProductFromEditor(event) {
       price: Number(document.getElementById('edit-product-price').value),
       stock: Number(document.getElementById('edit-product-stock').value),
       isActive: document.getElementById('edit-product-active').value === 'true',
+      colorOptions: document.getElementById('edit-product-has-colors')?.value === 'yes'
+        ? normalizeColorOptions(document.getElementById('edit-product-color-options')?.value)
+        : [],
       image: document.getElementById('edit-product-image-url').value
     })
   });

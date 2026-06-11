@@ -12,6 +12,25 @@ function cleanText(value, fallback = '') {
   return String(value).trim();
 }
 
+function normalizeColorOptions(value) {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+        .split(/[,\n|]/);
+
+  const seen = new Set();
+  return raw
+    .map(item => cleanText(item))
+    .filter(Boolean)
+    .filter(item => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
+}
+
 function cleanProductPayload(body, { partial = false } = {}) {
   const product = {
     id: cleanText(body.id),
@@ -20,6 +39,7 @@ function cleanProductPayload(body, { partial = false } = {}) {
     category: cleanText(body.category),
     image: cleanText(body.image),
     description: cleanText(body.description),
+    colorOptions: normalizeColorOptions(body.colorOptions ?? body.colors),
     stock: Number(body.stock),
     isActive: body.isActive === undefined ? true : Boolean(body.isActive)
   };
@@ -114,9 +134,9 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 
   await db.transaction(async (tx) => {
     await tx.run(`
-      INSERT INTO products (id, name, price, category, image, description, stock, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, product.name, product.price, product.category, product.image, product.description, product.stock, product.isActive ? 1 : 0]);
+      INSERT INTO products (id, name, price, category, image, description, color_options, stock, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, product.name, product.price, product.category, product.image, product.description, JSON.stringify(product.colorOptions), product.stock, product.isActive ? 1 : 0]);
     await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'CREATE_PRODUCT', ?, 'Initial product stock')`, [id, product.stock]);
   });
 
@@ -134,6 +154,7 @@ router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
     category: product.category || existing.category,
     image: product.image !== '' ? product.image : existing.image,
     description: product.description !== '' ? product.description : existing.description,
+    colorOptions: req.body.colorOptions === undefined && req.body.colors === undefined ? existing.colorOptions : product.colorOptions,
     stock: Number.isInteger(product.stock) && product.stock >= 0 ? product.stock : existing.stock,
     isActive: req.body.isActive === undefined ? existing.isActive : product.isActive
   };
@@ -142,9 +163,9 @@ router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
   await db.transaction(async (tx) => {
     await tx.run(`
       UPDATE products
-      SET name = ?, price = ?, category = ?, image = ?, description = ?, stock = ?, is_active = ?, updated_at = ${nowSql}
+      SET name = ?, price = ?, category = ?, image = ?, description = ?, color_options = ?, stock = ?, is_active = ?, updated_at = ${nowSql}
       WHERE id = ?
-    `, [next.name, next.price, next.category, next.image, next.description, next.stock, next.isActive ? 1 : 0, req.params.id]);
+    `, [next.name, next.price, next.category, next.image, next.description, JSON.stringify(next.colorOptions), next.stock, next.isActive ? 1 : 0, req.params.id]);
 
     const stockDelta = next.stock - existing.stock;
     if (stockDelta !== 0) {
@@ -262,6 +283,7 @@ router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
       const price = Number.isInteger(Number(p.price)) ? Number(p.price) : 0;
       const stock = Number.isInteger(Number(p.stock)) ? Number(p.stock) : 0;
       const category = String(p.category || '').trim();
+      const colorOptions = normalizeColorOptions(p.colorOptions ?? p.colors);
 
       const existingCategory = await tx.get('SELECT * FROM categories WHERE lower(name) = lower(?)', [category]);
       if (!existingCategory) {
@@ -269,9 +291,9 @@ router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
       }
 
       await tx.run(`
-        INSERT INTO products (id, name, price, category, image, description, stock, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-      `, [id, p.name.trim(), price, category, String(p.image || '').trim(), String(p.description || '').trim(), stock]);
+        INSERT INTO products (id, name, price, category, image, description, color_options, stock, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `, [id, p.name.trim(), price, category, String(p.image || '').trim(), String(p.description || '').trim(), JSON.stringify(colorOptions), stock]);
 
       await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'BULK_CREATE', ?, 'Bulk CSV Upload')`, [id, stock]);
       addedCount++;

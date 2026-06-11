@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const orderItems = document.getElementById('order-items');
   orderItems.innerHTML = cart.map(item => `
     <div class="order-item-row">
-      <span>${escapeHtml(item.name)} x ${item.qty}${item.prebook ? '<br><small>Pre-book advance today</small>' : ''}</span>
+      <span>${escapeHtml(item.name)} x ${item.qty}${item.selectedColor || item.color ? `<br><small>Colour: ${escapeHtml(item.selectedColor || item.color)}</small>` : ''}${item.prebook ? '<br><small>Pre-book advance today</small>' : ''}</span>
       <span>${rupees(item.price * item.qty)}</span>
     </div>
   `).join('');

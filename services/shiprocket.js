@@ -172,7 +172,15 @@ async function createOrder(orderData) {
     billing_email: customer.email,
     billing_phone: customer.phone,
     shipping_is_billing: true,
-    order_items: items.map(item => ({ name: item.name, sku: item.productId || item.id, units: item.qty, selling_price: item.price, discount: 0, tax: '', hsn: '' })),
+    order_items: items.map(item => ({
+      name: item.selectedColor || item.color ? `${item.name} - ${item.selectedColor || item.color}` : item.name,
+      sku: item.productId || item.id,
+      units: item.qty,
+      selling_price: item.price,
+      discount: 0,
+      tax: '',
+      hsn: ''
+    })),
     payment_method: 'Prepaid',
     shipping_charges: shipping || 0,
     giftwrap_charges: 0,

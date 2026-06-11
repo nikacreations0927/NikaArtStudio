@@ -6,6 +6,18 @@ function rowToCategory(row) {
   return { id: row.id, name: row.name, isActive: Boolean(row.is_active), createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
+function parseColorOptions(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(item => String(item || '').trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+  return [];
+}
+
 async function getCategories({ includeInactive = false } = {}) {
   const query = includeInactive
     ? 'SELECT * FROM categories ORDER BY name ASC'
@@ -26,7 +38,7 @@ async function createCategory(name) {
 
 function rowToProduct(row) {
   if (!row) return null;
-  return { id: row.id, name: row.name, price: row.price, category: row.category, image: row.image || '', description: row.description || '', stock: row.stock, isActive: Boolean(row.is_active), isDeleted: Boolean(row.is_deleted), createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, price: row.price, category: row.category, image: row.image || '', description: row.description || '', colorOptions: parseColorOptions(row.color_options), stock: row.stock, isActive: Boolean(row.is_active), isDeleted: Boolean(row.is_deleted), createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 async function getProducts({ includeInactive = false } = {}) {
@@ -66,7 +78,7 @@ async function getOrder(id) {
     shiprocketShipmentId: order.shiprocket_shipment_id,
     createdAt: order.created_at,
     updatedAt: order.updated_at,
-    items: items.map(item => ({ productId: item.product_id, name: item.name_snapshot, price: item.price_snapshot, qty: item.qty, lineTotal: item.line_total }))
+    items: items.map(item => ({ productId: item.product_id, name: item.name_snapshot, color: item.color_snapshot || '', selectedColor: item.color_snapshot || '', price: item.price_snapshot, qty: item.qty, lineTotal: item.line_total }))
   };
 }
 
@@ -102,10 +114,20 @@ async function createOrderFromCart(cart, customer, options = {}) {
       if (orderType === 'PREBOOK' && product.stock > 0) {
         throw new Error(`${product.name} is currently in stock. Please add it to cart normally.`);
       }
+      const colorOptions = Array.isArray(product.colorOptions) ? product.colorOptions : [];
+      const selectedColor = String(item.selectedColor || item.color || '').trim();
+      if (colorOptions.length && !selectedColor) {
+        throw new Error(`Choose a colour for ${product.name}.`);
+      }
+      if (selectedColor && !colorOptions.some(color => color.toLowerCase() === selectedColor.toLowerCase())) {
+        throw new Error(`${selectedColor} is not available for ${product.name}.`);
+      }
+      const colorSnapshot = colorOptions.find(color => color.toLowerCase() === selectedColor.toLowerCase()) || '';
 
       validatedItems.push({
         productId,
         name: product.name,
+        color: colorSnapshot,
         price: product.price,
         qty,
         lineTotal: product.price * qty
@@ -140,8 +162,8 @@ async function createOrderFromCart(cart, customer, options = {}) {
 
     for (const item of validatedItems) {
       await tx.run(
-        'INSERT INTO order_items (order_id, product_id, name_snapshot, price_snapshot, qty, line_total) VALUES (?, ?, ?, ?, ?, ?)',
-        [orderId, item.productId, item.name, item.price, item.qty, item.lineTotal]
+        'INSERT INTO order_items (order_id, product_id, name_snapshot, color_snapshot, price_snapshot, qty, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [orderId, item.productId, item.name, item.color, item.price, item.qty, item.lineTotal]
       );
     }
 

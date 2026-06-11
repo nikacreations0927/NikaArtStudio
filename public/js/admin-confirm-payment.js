@@ -95,7 +95,7 @@
 
     document.getElementById('payment-confirm-items').innerHTML = (order.items || []).map(item => `
       <tr>
-        <td><strong>${escapeHtml(item.name)}</strong></td>
+        <td><strong>${escapeHtml(item.name)}</strong>${item.selectedColor || item.color ? `<br><small>Colour: ${escapeHtml(item.selectedColor || item.color)}</small>` : ''}</td>
         <td>${Number(item.qty || 0)}</td>
         <td>${rupees(item.price)}</td>
         <td>${rupees(item.lineTotal || Number(item.price || 0) * Number(item.qty || 0))}</td>

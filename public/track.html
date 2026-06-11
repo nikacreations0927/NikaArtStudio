@@ -97,7 +97,7 @@ async function trackOrder(event) {
         </div>
         ${balancePayment}
         <h3>Items</h3>
-        ${order.items.map(item => `<p>${escapeHtml(item.name)} x ${item.qty}</p>`).join('')}
+        ${order.items.map(item => `<p>${escapeHtml(item.name)} x ${item.qty}${item.selectedColor || item.color ? ` - Colour: ${escapeHtml(item.selectedColor || item.color)}` : ''}</p>`).join('')}
       </div>
     `;
   } catch (err) {

@@ -170,6 +170,7 @@ async function initSchema() {
       category TEXT NOT NULL,
       image TEXT DEFAULT '',
       description TEXT DEFAULT '',
+      color_options TEXT NOT NULL DEFAULT '[]',
       stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
       is_active INTEGER NOT NULL DEFAULT 1,
       is_deleted INTEGER NOT NULL DEFAULT 0,
@@ -205,6 +206,7 @@ async function initSchema() {
       order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
       product_id TEXT NOT NULL REFERENCES products(id),
       name_snapshot TEXT NOT NULL,
+      color_snapshot TEXT DEFAULT '',
       price_snapshot INTEGER NOT NULL,
       qty INTEGER NOT NULL CHECK (qty > 0),
       line_total INTEGER NOT NULL
@@ -255,6 +257,8 @@ async function initSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_provider_transaction_id TEXT;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_requested_at TIMESTAMPTZ;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_paid_at TIMESTAMPTZ;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS color_options TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS color_snapshot TEXT DEFAULT '';
   `);
 }
 
@@ -309,7 +313,8 @@ function loadCloudinaryProductsFromCsv() {
     price: indexOf('Price'),
     stock: indexOf('Stock'),
     image: indexOf('Image'),
-    description: indexOf('Description')
+    description: indexOf('Description'),
+    colors: indexOf('Colors')
   };
 
   return lines.slice(1).map((line) => {
@@ -323,6 +328,7 @@ function loadCloudinaryProductsFromCsv() {
       category: String(cells[indexes.category] || 'Keychains').trim() || 'Keychains',
       image: String(cells[indexes.image] || '').trim(),
       description: String(cells[indexes.description] || '').trim(),
+      colorOptions: String(cells[indexes.colors] || '').split(/[|,]/).map(color => color.trim()).filter(Boolean),
       stock: Number(cells[indexes.stock] || 0)
     };
   }).filter(Boolean);
@@ -335,10 +341,10 @@ async function seedProductRows(products) {
     let added = 0;
     for (const p of products) {
       const result = await tx.run(`
-        INSERT INTO products (id, name, price, category, image, description, stock)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO products (id, name, price, category, image, description, color_options, stock)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (id) DO NOTHING
-      `, [p.id, p.name, p.price, p.category, p.image, p.description, p.stock]);
+      `, [p.id, p.name, p.price, p.category, p.image, p.description, JSON.stringify(p.colorOptions || []), p.stock]);
       if (result.changes > 0) {
         await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'SEED', ?, ?)`, [p.id, p.stock, 'Seeded from catalog']);
         added += 1;

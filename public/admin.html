@@ -84,6 +84,17 @@
             <option value="false">Hidden</option>
           </select>
         </label>
+        <div class="form-row two-col">
+          <label>Colour choices?
+            <select id="edit-product-has-colors" onchange="toggleEditColorOptions()">
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </label>
+          <label id="edit-product-colors-label">Available colours
+            <input id="edit-product-color-options" placeholder="Yellow, Blue, Green" />
+          </label>
+        </div>
         <label>Image URL <input id="edit-product-image-url" readonly /></label>
         <div class="admin-modal-actions">
           <button class="btn-outline" type="button" onclick="closeProductEditor()">Cancel</button>

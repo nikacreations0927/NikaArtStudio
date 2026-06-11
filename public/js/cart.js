@@ -108,6 +108,69 @@ function escapeJsString(value) {
   return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+function normalizeColorOptions(value) {
+  const raw = Array.isArray(value) ? value : String(value || '').split(/[,\n|]/);
+  const seen = new Set();
+  return raw
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .filter(item => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function cartItemKey(productId, color = '') {
+  return `${productId}::${String(color || '').trim().toLowerCase()}`;
+}
+
+function selectedColorFromControl(productId) {
+  return document.getElementById(`product-color-${productId}`)?.value || '';
+}
+
+function productColorSelector(product) {
+  const colors = normalizeColorOptions(product.colorOptions);
+  if (!colors.length) return '';
+  return `
+    <label class="product-color-picker">
+      <span>Colour</span>
+      <select id="product-color-${escapeHtml(product.id)}" aria-label="Choose colour for ${escapeHtml(product.name)}">
+        ${colors.map(color => `<option value="${escapeHtml(color)}">${escapeHtml(color)}</option>`).join('')}
+      </select>
+    </label>
+  `;
+}
+
+function withSelectedColor(product, selectedColor = '') {
+  const colors = normalizeColorOptions(product.colorOptions);
+  const color = colors.length ? (selectedColor || colors[0] || '') : '';
+  return {
+    ...product,
+    colorOptions: colors,
+    selectedColor: color,
+    color,
+    cartKey: cartItemKey(product.id, color)
+  };
+}
+
+function addProductCardToCart(productId, prebook = false) {
+  const product = PRODUCTS.find(item => item.id === productId);
+  if (!product) {
+    showToast('Product is unavailable. Please refresh the page.', true);
+    return;
+  }
+  const selectedColor = selectedColorFromControl(productId);
+  const cartProduct = withSelectedColor(product, selectedColor);
+  if (normalizeColorOptions(product.colorOptions).length && !cartProduct.selectedColor) {
+    showToast(`Please choose a colour for ${product.name}.`, true);
+    return;
+  }
+  if (prebook) addPrebookToCart(cartProduct);
+  else addToCart(cartProduct);
+}
+
 // Generates the HTML for individual products (with our premium animations!)
 // Inside public/js/cart.js
 function productCard(product) {
@@ -118,6 +181,7 @@ function productCard(product) {
   const safeDescription = escapeHtml(product.description || '');
   const isOut = Number(product.stock || 0) <= 0;
   const advance = prebookAdvanceAmount(product.price);
+  const colors = normalizeColorOptions(product.colorOptions);
   return `
     <div class="product-card reveal">
       <a href="/product?id=${encodeURIComponent(product.id)}" class="product-image-link" aria-label="View ${safeName}">
@@ -131,9 +195,10 @@ function productCard(product) {
         <p style="font-weight: 600; margin: 0;">${rupees(product.price)}</p>
       </div>
       ${safeDescription ? `<p class="product-card-desc">${safeDescription}</p>` : ''}
+      ${colors.length ? productColorSelector(product) : ''}
       <div class="product-card-actions">
         <a class="btn-outline" href="/product?id=${encodeURIComponent(product.id)}">View</a>
-        <button class="btn-primary" onclick="${isOut ? `addPrebookToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})` : `addToCart({id: '${escapeJsString(product.id)}', name: '${escapeJsString(product.name)}', price: ${Number(product.price)}, image: '${escapeJsString(product.image)}', stock: ${Number(product.stock)}})`}">
+        <button class="btn-primary" onclick="addProductCardToCart('${escapeJsString(product.id)}', ${isOut ? 'true' : 'false'})">
           ${isOut ? `Pre-book ${rupees(advance)}` : 'Add to cart'}
         </button>
       </div>
@@ -161,15 +226,23 @@ function syncCartWithProducts() {
     .map(item => {
       const latest = PRODUCTS.find(product => product.id === item.id);
       if (!latest || !latest.isActive) return null;
+      const colors = normalizeColorOptions(latest.colorOptions);
+      const selectedColor = colors.length
+        ? (colors.find(color => color.toLowerCase() === String(item.selectedColor || item.color || '').trim().toLowerCase()) || colors[0])
+        : '';
       if (item.prebook) {
         if (latest.stock > 0) return null;
         return {
           id: latest.id,
+          cartKey: cartItemKey(latest.id, selectedColor),
           name: latest.name,
           price: prebookAdvanceAmount(latest.price),
           fullPrice: latest.price,
           image: latest.image,
           stock: latest.stock,
+          colorOptions: colors,
+          selectedColor,
+          color: selectedColor,
           qty: 1,
           prebook: true,
           orderType: 'PREBOOK'
@@ -178,10 +251,14 @@ function syncCartWithProducts() {
       if (latest.stock <= 0) return null;
       return {
         id: latest.id,
+        cartKey: cartItemKey(latest.id, selectedColor),
         name: latest.name,
         price: latest.price,
         image: latest.image,
         stock: latest.stock,
+        colorOptions: colors,
+        selectedColor,
+        color: selectedColor,
         qty: Math.min(Number(item.qty) || 1, latest.stock)
       };
     })
@@ -204,7 +281,9 @@ function addToCart(product) {
     showToast('Please checkout or remove your pre-book before adding in-stock products.', true);
     return;
   }
-  const existing = cart.find(item => item.id === product.id);
+  const colorAwareProduct = withSelectedColor(product, product.selectedColor || product.color);
+  const key = colorAwareProduct.cartKey;
+  const existing = cart.find(item => (item.cartKey || cartItemKey(item.id, item.selectedColor || item.color)) === key);
   
   if (existing) {
     if (existing.qty < product.stock) {
@@ -218,12 +297,12 @@ function addToCart(product) {
       showToast("Sorry, this item is currently out of stock!", true);
       return;
     }
-    cart.push({ ...product, qty: 1 });
+    cart.push({ ...colorAwareProduct, qty: 1 });
   }
   
   saveCart(cart);
   // Replaced the alert() with our new sleek floater!
-  showToast(`${product.name} added to cart!`);
+  showToast(`${product.name}${colorAwareProduct.selectedColor ? ` - ${colorAwareProduct.selectedColor}` : ''} added to cart!`);
 }
 
 function addPrebookToCart(product) {
@@ -232,23 +311,28 @@ function addPrebookToCart(product) {
     showToast('Pre-book products must be checked out separately. Please clear your cart first.', true);
     return;
   }
-  if (cart.length && cart[0].id !== product.id) {
+  const colorAwareProduct = withSelectedColor(product, product.selectedColor || product.color);
+  if (cart.length && (cart[0].cartKey || cartItemKey(cart[0].id, cart[0].selectedColor || cart[0].color)) !== colorAwareProduct.cartKey) {
     showToast('Please checkout or remove your current pre-book before selecting another.', true);
     return;
   }
   const advance = prebookAdvanceAmount(product.price);
   saveCart([{
     id: product.id,
+    cartKey: colorAwareProduct.cartKey,
     name: product.name,
     price: advance,
     fullPrice: Number(product.price),
     image: product.image,
     stock: Number(product.stock || 0),
+    colorOptions: colorAwareProduct.colorOptions,
+    selectedColor: colorAwareProduct.selectedColor,
+    color: colorAwareProduct.selectedColor,
     qty: 1,
     prebook: true,
     orderType: 'PREBOOK'
   }]);
-  showToast(`${product.name} reserved for pre-book. Advance due: ${rupees(advance)}.`);
+  showToast(`${product.name}${colorAwareProduct.selectedColor ? ` - ${colorAwareProduct.selectedColor}` : ''} reserved for pre-book. Advance due: ${rupees(advance)}.`);
 }
 
 // --- Premium Toast Notification System ---
@@ -310,22 +394,27 @@ function renderCartPage() {
     const itemTotal = item.price * item.qty;
     subtotal += itemTotal;
     const imgSrc = item.image || 'https://via.placeholder.com/90?text=Art';
+    const key = item.cartKey || cartItemKey(item.id, item.selectedColor || item.color);
+    const colorLine = item.selectedColor || item.color
+      ? `<p class="cart-item-option">Colour: ${escapeHtml(item.selectedColor || item.color)}</p>`
+      : '';
     
     return `
       <div class="cart-item">
         <img src="${imgSrc}" alt="${item.name}">
         <div class="cart-item-details">
           <h4 class="cart-item-title">${item.name}</h4>
+          ${colorLine}
           <p style="margin: 0; color: #666;">${item.prebook ? `${rupees(item.fullPrice)} full price | ${rupees(item.price)} advance` : `${rupees(item.price)} each`}</p>
           ${item.prebook ? '<p class="cart-note prebook-inline-note">Pre-book item. Balance is requested after stock is ready.</p>' : ''}
-          <button class="remove-btn" onclick="removeFromCart('${item.id}')">Remove</button>
+          <button class="remove-btn" onclick="removeFromCart('${escapeJsString(key)}')">Remove</button>
         </div>
         <div style="text-align: right; min-width: 100px;">
           <p style="font-weight: 600; margin: 0; font-size: 1.1rem;">${rupees(itemTotal)}</p>
           <div class="qty-controls">
-            <button class="qty-btn" onclick="changeQty('${item.id}', -1)">-</button>
+            <button class="qty-btn" onclick="changeQty('${escapeJsString(key)}', -1)">-</button>
             <span style="min-width: 20px; text-align: center;">${item.qty}</span>
-            <button class="qty-btn" ${item.prebook ? 'disabled' : ''} onclick="changeQty('${item.id}', 1)">+</button>
+            <button class="qty-btn" ${item.prebook ? 'disabled' : ''} onclick="changeQty('${escapeJsString(key)}', 1)">+</button>
           </div>
         </div>
       </div>
@@ -377,9 +466,9 @@ function renderCartPage() {
   `;
 }
 
-function changeQty(id, delta) {
+function changeQty(key, delta) {
   const cart = getCart();
-  const item = cart.find(i => i.id === id);
+  const item = cart.find(i => (i.cartKey || cartItemKey(i.id, i.selectedColor || i.color)) === key);
   if (item) {
     if (item.prebook && delta > 0) {
       showToast('Pre-book quantity is limited to 1 per checkout.', true);
@@ -399,9 +488,9 @@ function changeQty(id, delta) {
   }
 }
 
-function removeFromCart(id) {
+function removeFromCart(key) {
   let cart = getCart();
-  cart = cart.filter(item => item.id !== id);
+  cart = cart.filter(item => (item.cartKey || cartItemKey(item.id, item.selectedColor || item.color)) !== key);
   saveCart(cart);
   renderCartPage();
 }
