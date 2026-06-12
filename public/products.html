@@ -41,6 +41,19 @@
   <p>Handcrafted originals, prints &amp; more</p>
 </div>
 
+<section class="section custom-bouquet-section" id="custom-bouquet">
+  <div class="section-header bouquet-builder-heading">
+    <div>
+      <p class="eyebrow">Custom bouquet</p>
+      <h2>Build your own bouquet</h2>
+      <p>Choose flower sticks and colours, preview the arrangement, then get an estimate.</p>
+    </div>
+  </div>
+  <div class="bouquet-builder" id="bouquet-builder">
+    <div class="bouquet-builder-empty">Loading flower choices...</div>
+  </div>
+</section>
+
 <!-- Category filter -->
 <section class="section">
   <div class="filter-bar" id="filter-bar">
@@ -59,6 +72,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await Promise.all([loadProducts(), loadCategories()]);
+  initCustomBouquetBuilder();
 
   // Build category buttons dynamically
   const categoryNames = CATEGORIES.length

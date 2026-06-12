@@ -13,17 +13,33 @@ function cleanText(value, fallback = '') {
 }
 
 function normalizeColorOptions(value) {
+  const seen = new Set();
   const raw = Array.isArray(value)
     ? value
     : String(value || '')
-        .split(/[,\n|]/);
+        .split(/[\n;]+/)
+        .flatMap(part => (part.includes('|') ? [part] : part.split(',')));
 
-  const seen = new Set();
   return raw
-    .map(item => cleanText(item))
+    .map(item => {
+      if (item && typeof item === 'object') {
+        return {
+          name: cleanText(item.name || item.color || item.label),
+          image: cleanText(item.image || item.imageUrl || item.url)
+        };
+      }
+
+      const text = cleanText(item);
+      const [name, ...imageParts] = text.split('|');
+      return {
+        name: cleanText(name || text),
+        image: cleanText(imageParts.join('|'))
+      };
+    })
+    .filter(item => item.name)
     .filter(Boolean)
     .filter(item => {
-      const key = item.toLowerCase();
+      const key = item.name.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

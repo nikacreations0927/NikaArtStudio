@@ -8,10 +8,32 @@ function rowToCategory(row) {
 
 function parseColorOptions(value) {
   if (!value) return [];
-  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+  const normalize = (items) => {
+    const seen = new Set();
+    return items
+      .map(item => {
+        if (item && typeof item === 'object') {
+          return {
+            name: String(item.name || item.color || item.label || '').trim(),
+            image: String(item.image || item.imageUrl || item.url || '').trim()
+          };
+        }
+        const text = String(item || '').trim();
+        const [name, ...imageParts] = text.split('|');
+        return { name: String(name || text).trim(), image: imageParts.join('|').trim() };
+      })
+      .filter(item => item.name)
+      .filter(item => {
+        const key = item.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  };
+  if (Array.isArray(value)) return normalize(value);
   try {
     const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return parsed.map(item => String(item || '').trim()).filter(Boolean);
+    if (Array.isArray(parsed)) return normalize(parsed);
   } catch {
     return [];
   }
@@ -119,10 +141,10 @@ async function createOrderFromCart(cart, customer, options = {}) {
       if (colorOptions.length && !selectedColor) {
         throw new Error(`Choose a colour for ${product.name}.`);
       }
-      if (selectedColor && !colorOptions.some(color => color.toLowerCase() === selectedColor.toLowerCase())) {
+      if (selectedColor && !colorOptions.some(color => color.name.toLowerCase() === selectedColor.toLowerCase())) {
         throw new Error(`${selectedColor} is not available for ${product.name}.`);
       }
-      const colorSnapshot = colorOptions.find(color => color.toLowerCase() === selectedColor.toLowerCase()) || '';
+      const colorSnapshot = colorOptions.find(color => color.name.toLowerCase() === selectedColor.toLowerCase())?.name || '';
 
       validatedItems.push({
         productId,

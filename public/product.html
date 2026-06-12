@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const product = data.product;
     PRODUCTS = [product];
     document.title = `${product.name} - Nika Arts Studio`;
-    const img = product.image || 'https://via.placeholder.com/700?text=Art';
+    const img = defaultProductImage(product).replace('300?text=Art', '700?text=Art');
     const isOut = Number(product.stock || 0) <= 0;
     const colors = normalizeColorOptions(product.colorOptions);
 

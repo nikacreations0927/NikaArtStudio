@@ -622,7 +622,7 @@ function filterInventoryTable() {
 // --- Bulk CSV Logic ---
 function downloadCSVTemplate() {
   const headers = "Name,Category,Price,Stock,Image,Description,Colors\n";
-  const sampleData = "Beer Happy Mug Keychain,Keychains,499,5,https://res.cloudinary.com/demo/image/upload/sample.jpg,Handmade crochet beer happy mug keychain,\"Yellow, Blue, Green\"\nCrochet Sunflower,Crochet,449,15,,Handmade yarn flower,";
+  const sampleData = "Beer Happy Mug Keychain,Keychains,499,5,https://res.cloudinary.com/demo/image/upload/sample.jpg,Handmade crochet beer happy mug keychain,\"Yellow | https://res.cloudinary.com/demo/image/upload/yellow.jpg; Blue | https://res.cloudinary.com/demo/image/upload/blue.jpg\"\nCrochet Sunflower,Crochet,449,15,,Handmade yarn flower,";
   
   const blob = new Blob([headers + sampleData], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
@@ -801,13 +801,28 @@ function categoryFilterOptions() {
 }
 
 function normalizeColorOptions(value) {
-  const raw = Array.isArray(value) ? value : String(value || '').split(/[,\n|]/);
   const seen = new Set();
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+        .split(/[\n;]+/)
+        .flatMap(part => (part.includes('|') ? [part] : part.split(',')));
+
   return raw
-    .map(item => String(item || '').trim())
-    .filter(Boolean)
+    .map(item => {
+      if (item && typeof item === 'object') {
+        return {
+          name: String(item.name || item.color || item.label || '').trim(),
+          image: String(item.image || item.imageUrl || item.url || '').trim()
+        };
+      }
+      const text = String(item || '').trim();
+      const [name, ...imageParts] = text.split('|');
+      return { name: String(name || text).trim(), image: imageParts.join('|').trim() };
+    })
+    .filter(item => item.name)
     .filter(item => {
-      const key = item.toLowerCase();
+      const key = item.name.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -817,7 +832,13 @@ function normalizeColorOptions(value) {
 function colorOptionsSummary(product) {
   const colors = normalizeColorOptions(product.colorOptions || product.colors);
   if (!colors.length) return '';
-  return `<small class="product-row-colors">Colours: ${colors.map(escapeHtml).join(', ')}</small>`;
+  return `<small class="product-row-colors">Colours: ${colors.map(color => `${escapeHtml(color.name)}${color.image ? ' (image)' : ''}`).join(', ')}</small>`;
+}
+
+function serializeColorOptions(colors = []) {
+  return normalizeColorOptions(colors)
+    .map(color => color.image ? `${color.name} | ${color.image}` : color.name)
+    .join('\n');
 }
 
 function toggleNewColorOptions() {
@@ -844,7 +865,7 @@ function setProductColorFields(colors = []) {
   const select = document.getElementById('edit-product-has-colors');
   const input = document.getElementById('edit-product-color-options');
   if (select) select.value = normalized.length ? 'yes' : 'no';
-  if (input) input.value = normalized.join(', ');
+  if (input) input.value = serializeColorOptions(normalized);
   toggleEditColorOptions();
 }
 
@@ -862,7 +883,7 @@ function statusBadge(product) {
 
 function productMatchesInventoryFilters(product) {
   const query = INVENTORY_STATE.query;
-  const matchesQuery = !query || `${product.name} ${product.category} ${product.description || ''} ${normalizeColorOptions(product.colorOptions).join(' ')}`.toLowerCase().includes(query);
+  const matchesQuery = !query || `${product.name} ${product.category} ${product.description || ''} ${normalizeColorOptions(product.colorOptions).map(color => color.name).join(' ')}`.toLowerCase().includes(query);
   const matchesCategory = !INVENTORY_STATE.category || product.category === INVENTORY_STATE.category;
   const matchesStatus = INVENTORY_STATE.status === 'all'
     || (INVENTORY_STATE.status === 'active' && product.isActive)
@@ -1012,7 +1033,7 @@ function exportProductsCsv() {
       product.isActive ? 'yes' : 'no',
       product.image,
       product.description,
-      normalizeColorOptions(product.colorOptions).join(', ')
+      serializeColorOptions(product.colorOptions).replace(/\n/g, '; ')
     ])
   ];
   downloadCsv('nika_products.csv', rows);

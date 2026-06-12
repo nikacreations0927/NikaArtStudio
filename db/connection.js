@@ -288,6 +288,25 @@ function parseCsvLine(line) {
   return cells;
 }
 
+function parseColorOptions(value) {
+  const seen = new Set();
+  return String(value || '')
+    .split(/[\n;]+/)
+    .flatMap(part => (part.includes('|') ? [part] : part.split(',')))
+    .map(item => {
+      const text = String(item || '').trim();
+      const [name, ...imageParts] = text.split('|');
+      return { name: String(name || text).trim(), image: imageParts.join('|').trim() };
+    })
+    .filter(item => item.name)
+    .filter(item => {
+      const key = item.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 function slugifyProductId(name) {
   return String(name || '')
     .toLowerCase()
@@ -328,7 +347,7 @@ function loadCloudinaryProductsFromCsv() {
       category: String(cells[indexes.category] || 'Keychains').trim() || 'Keychains',
       image: String(cells[indexes.image] || '').trim(),
       description: String(cells[indexes.description] || '').trim(),
-      colorOptions: String(cells[indexes.colors] || '').split(/[|,]/).map(color => color.trim()).filter(Boolean),
+      colorOptions: parseColorOptions(cells[indexes.colors]),
       stock: Number(cells[indexes.stock] || 0)
     };
   }).filter(Boolean);

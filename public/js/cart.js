@@ -109,13 +109,28 @@ function escapeJsString(value) {
 }
 
 function normalizeColorOptions(value) {
-  const raw = Array.isArray(value) ? value : String(value || '').split(/[,\n|]/);
   const seen = new Set();
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+        .split(/[\n;]+/)
+        .flatMap(part => (part.includes('|') ? [part] : part.split(',')));
+
   return raw
-    .map(item => String(item || '').trim())
-    .filter(Boolean)
+    .map(item => {
+      if (item && typeof item === 'object') {
+        return {
+          name: String(item.name || item.color || item.label || '').trim(),
+          image: String(item.image || item.imageUrl || item.url || '').trim()
+        };
+      }
+      const text = String(item || '').trim();
+      const [name, ...imageParts] = text.split('|');
+      return { name: String(name || text).trim(), image: imageParts.join('|').trim() };
+    })
+    .filter(item => item.name)
     .filter(item => {
-      const key = item.toLowerCase();
+      const key = item.name.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -136,8 +151,8 @@ function productColorSelector(product) {
   return `
     <label class="product-color-picker">
       <span>Colour</span>
-      <select id="product-color-${escapeHtml(product.id)}" aria-label="Choose colour for ${escapeHtml(product.name)}">
-        ${colors.map(color => `<option value="${escapeHtml(color)}">${escapeHtml(color)}</option>`).join('')}
+      <select id="product-color-${escapeHtml(product.id)}" aria-label="Choose colour for ${escapeHtml(product.name)}" onchange="updateProductColorImage(this)">
+        ${colors.map(color => `<option value="${escapeHtml(color.name)}" data-image="${escapeHtml(color.image || '')}">${escapeHtml(color.name)}</option>`).join('')}
       </select>
     </label>
   `;
@@ -145,14 +160,36 @@ function productColorSelector(product) {
 
 function withSelectedColor(product, selectedColor = '') {
   const colors = normalizeColorOptions(product.colorOptions);
-  const color = colors.length ? (selectedColor || colors[0] || '') : '';
+  const colorOption = colors.length
+    ? (colors.find(item => item.name.toLowerCase() === String(selectedColor || '').trim().toLowerCase()) || colors[0])
+    : null;
+  const color = colorOption?.name || '';
   return {
     ...product,
     colorOptions: colors,
     selectedColor: color,
     color,
+    image: colorOption?.image || product.image,
     cartKey: cartItemKey(product.id, color)
   };
+}
+
+function defaultProductImage(product) {
+  const firstColor = normalizeColorOptions(product.colorOptions)[0];
+  return firstColor?.image || product.image || 'https://via.placeholder.com/300?text=Art';
+}
+
+function updateProductColorImage(select) {
+  const image = select.selectedOptions?.[0]?.dataset?.image || '';
+  if (!image) return;
+  const card = select.closest('.product-card');
+  const cardImage = card?.querySelector('.product-img');
+  if (cardImage) {
+    cardImage.src = image;
+    return;
+  }
+  const detailImage = document.querySelector('.product-detail-media img');
+  if (detailImage) detailImage.src = image;
 }
 
 function addProductCardToCart(productId, prebook = false) {
@@ -174,7 +211,7 @@ function addProductCardToCart(productId, prebook = false) {
 // Generates the HTML for individual products (with our premium animations!)
 // Inside public/js/cart.js
 function productCard(product) {
-  const imgSrc = product.image || 'https://via.placeholder.com/300?text=Art';
+  const imgSrc = defaultProductImage(product);
   const safeName = escapeHtml(product.name);
   const safeCategory = escapeHtml(product.category);
   const safeImage = escapeHtml(imgSrc);
@@ -228,8 +265,9 @@ function syncCartWithProducts() {
       if (!latest || !latest.isActive) return null;
       const colors = normalizeColorOptions(latest.colorOptions);
       const selectedColor = colors.length
-        ? (colors.find(color => color.toLowerCase() === String(item.selectedColor || item.color || '').trim().toLowerCase()) || colors[0])
+        ? (colors.find(color => color.name.toLowerCase() === String(item.selectedColor || item.color || '').trim().toLowerCase())?.name || colors[0].name)
         : '';
+      const colorImage = colors.find(color => color.name === selectedColor)?.image || latest.image;
       if (item.prebook) {
         if (latest.stock > 0) return null;
         return {
@@ -238,7 +276,7 @@ function syncCartWithProducts() {
           name: latest.name,
           price: prebookAdvanceAmount(latest.price),
           fullPrice: latest.price,
-          image: latest.image,
+          image: colorImage,
           stock: latest.stock,
           colorOptions: colors,
           selectedColor,
@@ -254,7 +292,7 @@ function syncCartWithProducts() {
         cartKey: cartItemKey(latest.id, selectedColor),
         name: latest.name,
         price: latest.price,
-        image: latest.image,
+        image: colorImage,
         stock: latest.stock,
         colorOptions: colors,
         selectedColor,
@@ -573,6 +611,231 @@ function filterCategory(category, buttonElement) {
     const filtered = PRODUCTS.filter(p => p.category === category);
     renderProducts(filtered);
   }
+}
+
+const BOUQUET_BUILDER_STATE = {
+  selected: new Map(),
+  visualized: false
+};
+
+function bouquetPaletteFor(productName) {
+  const name = String(productName || '').toLowerCase();
+  if (name.includes('sunflower')) return [{ name: 'Yellow', value: '#e4aa18' }];
+  if (name.includes('tulip')) return [
+    { name: 'White', value: '#f8f5ea' },
+    { name: 'Orange', value: '#df7a2f' },
+    { name: 'Blue', value: '#8fb8d7' }
+  ];
+  if (name.includes('rose')) return [
+    { name: 'Red', value: '#b91c2f' },
+    { name: 'Pink', value: '#e88aa9' },
+    { name: 'Purple', value: '#8b5fbf' },
+    { name: 'Yellow', value: '#e4b02d' },
+    { name: 'Blue', value: '#75a9d6' }
+  ];
+  if (name.includes('daisy')) return [
+    { name: 'White', value: '#fffaf0' },
+    { name: 'Peach', value: '#f3b993' },
+    { name: 'Pink', value: '#e9a6c4' },
+    { name: 'Red', value: '#cf2435' },
+    { name: 'Mint', value: '#9bd2c5' }
+  ];
+  if (name.includes('lily')) return [
+    { name: 'Yellow', value: '#ead565' },
+    { name: 'Purple', value: '#9b7ad3' },
+    { name: 'Peach', value: '#efb79f' },
+    { name: 'Red', value: '#cf2435' }
+  ];
+  if (name.includes('bunny')) return [
+    { name: 'White', value: '#fffaf0' },
+    { name: 'Cream', value: '#f3e6c8' }
+  ];
+  if (name.includes('pom')) return [
+    { name: 'Cream', value: '#eadfc7' },
+    { name: 'Peach', value: '#de946b' },
+    { name: 'Lavender', value: '#b59ad1' }
+  ];
+  return [
+    { name: 'Red', value: '#c5333f' },
+    { name: 'Pink', value: '#e8a2bf' },
+    { name: 'Yellow', value: '#dfad27' },
+    { name: 'White', value: '#fffaf0' }
+  ];
+}
+
+function bouquetFlowerProducts() {
+  return PRODUCTS
+    .filter(product => product.category === 'Flowers' && /sticks/i.test(product.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function bouquetBaseImage() {
+  return PRODUCTS.find(product => product.category === 'Flowers' && /mixed lily bouquet/i.test(product.name))?.image
+    || PRODUCTS.find(product => product.category === 'Flowers' && /bouquet/i.test(product.name))?.image
+    || PRODUCTS.find(product => product.category === 'Flowers')?.image
+    || '';
+}
+
+function selectedBouquetItems() {
+  return [...BOUQUET_BUILDER_STATE.selected.entries()].flatMap(([productId, colors]) => {
+    const product = PRODUCTS.find(item => item.id === productId);
+    if (!product) return [];
+    const palette = bouquetPaletteFor(product.name);
+    const chosenColors = colors.length ? colors : [palette[0]?.name].filter(Boolean);
+    return chosenColors.map(colorName => {
+      const color = palette.find(item => item.name === colorName) || palette[0] || { name: colorName, value: '#c9a227' };
+      return { product, color };
+    });
+  });
+}
+
+function bouquetEstimate(items) {
+  return items.reduce((sum, item) => sum + Number(item.product.price || 0), 0);
+}
+
+function initCustomBouquetBuilder() {
+  const builder = document.getElementById('bouquet-builder');
+  if (!builder) return;
+
+  const flowers = bouquetFlowerProducts();
+  if (!flowers.length) {
+    builder.innerHTML = '<div class="bouquet-builder-empty">Flower stick options will appear here once they are added to inventory.</div>';
+    return;
+  }
+
+  renderCustomBouquetBuilder();
+}
+
+function renderCustomBouquetBuilder() {
+  const builder = document.getElementById('bouquet-builder');
+  if (!builder) return;
+
+  const flowers = bouquetFlowerProducts();
+  const selectedItems = selectedBouquetItems();
+  const estimate = bouquetEstimate(selectedItems);
+  const baseImage = bouquetBaseImage();
+
+  builder.innerHTML = `
+    <div class="bouquet-builder-panel">
+      <div class="bouquet-builder-step">
+        <h3>1. Pick flower sticks</h3>
+        <div class="bouquet-option-grid">
+          ${flowers.map(product => {
+            const active = BOUQUET_BUILDER_STATE.selected.has(product.id);
+            return `<button type="button" class="bouquet-choice${active ? ' active' : ''}" onclick="toggleBouquetFlower('${escapeJsString(product.id)}')">
+              <span>${escapeHtml(product.name)}</span>
+              <small>${rupees(product.price)} each</small>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="bouquet-builder-step">
+        <h3>2. Choose colours</h3>
+        <div class="bouquet-color-groups">
+          ${flowers.filter(product => BOUQUET_BUILDER_STATE.selected.has(product.id)).map(product => bouquetColorGroup(product)).join('') || '<p class="bouquet-muted">Select a flower stick to view colour choices.</p>'}
+        </div>
+      </div>
+
+      <div class="bouquet-actions">
+        <button type="button" class="btn-primary" onclick="visualizeCustomBouquet()">Visualize bouquet</button>
+        <button type="button" class="btn-outline" onclick="resetCustomBouquet()">Reset</button>
+      </div>
+    </div>
+
+    <div class="bouquet-preview-card">
+      <div class="bouquet-preview" aria-live="polite">
+        ${baseImage ? `<img class="bouquet-base-image" src="${escapeHtml(baseImage)}" alt="Bouquet base reference">` : ''}
+        ${BOUQUET_BUILDER_STATE.visualized && selectedItems.length ? bouquetPreviewMarkup(selectedItems) : '<div class="bouquet-preview-placeholder">Pick flowers and colours, then visualize.</div>'}
+      </div>
+      <div class="bouquet-estimate">
+        <span>Estimated bouquet cost</span>
+        <strong>${selectedItems.length && BOUQUET_BUILDER_STATE.visualized ? rupees(estimate) : 'Select flowers'}</strong>
+        <p>${selectedItems.length ? `${selectedItems.length} flower stick${selectedItems.length === 1 ? '' : 's'} selected. Estimate uses current product prices; final quote can be confirmed by the studio.` : 'Choose one or more flower sticks to build a custom bouquet.'}</p>
+      </div>
+    </div>
+  `;
+}
+
+function bouquetColorGroup(product) {
+  const selectedColors = BOUQUET_BUILDER_STATE.selected.get(product.id) || [];
+  const palette = bouquetPaletteFor(product.name);
+  return `
+    <div class="bouquet-color-group">
+      <p>${escapeHtml(product.name)}</p>
+      <div class="bouquet-color-row">
+        ${palette.map(color => {
+          const active = selectedColors.includes(color.name);
+          return `<button type="button" class="bouquet-color-chip${active ? ' active' : ''}" style="--chip-color: ${escapeHtml(color.value)}" onclick="toggleBouquetColor('${escapeJsString(product.id)}', '${escapeJsString(color.name)}')">
+            <span></span>${escapeHtml(color.name)}
+          </button>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function bouquetPreviewMarkup(items) {
+  const positions = [
+    { left: 49, top: 20, scale: 1.12, angle: 0 },
+    { left: 34, top: 31, scale: 0.98, angle: 7 },
+    { left: 64, top: 32, scale: 0.98, angle: -7 },
+    { left: 43, top: 42, scale: 0.92, angle: 4 },
+    { left: 57, top: 45, scale: 0.92, angle: -4 },
+    { left: 27, top: 46, scale: 0.78, angle: 11 },
+    { left: 72, top: 48, scale: 0.78, angle: -11 },
+    { left: 50, top: 55, scale: 0.8, angle: 0 }
+  ];
+
+  return `
+    <div class="bouquet-render">
+      ${items.slice(0, 8).map((item, index) => {
+        const position = positions[index % positions.length];
+        return `<div class="bouquet-stem" style="--stem-left: ${position.left}%; --stem-top: ${position.top + 9}%; --stem-angle: ${position.angle}deg"></div>
+          <div class="bouquet-flower" title="${escapeHtml(item.product.name)} - ${escapeHtml(item.color.name)}" style="--flower-color: ${escapeHtml(item.color.value)}; --flower-left: ${position.left}%; --flower-top: ${position.top}%; --flower-scale: ${position.scale}">
+            <i></i><i></i><i></i><i></i><i></i><b></b>
+          </div>`;
+      }).join('')}
+      <div class="bouquet-wrap"></div>
+    </div>
+  `;
+}
+
+function toggleBouquetFlower(productId) {
+  if (BOUQUET_BUILDER_STATE.selected.has(productId)) {
+    BOUQUET_BUILDER_STATE.selected.delete(productId);
+  } else {
+    const product = PRODUCTS.find(item => item.id === productId);
+    const firstColor = bouquetPaletteFor(product?.name)[0]?.name;
+    BOUQUET_BUILDER_STATE.selected.set(productId, firstColor ? [firstColor] : []);
+  }
+  BOUQUET_BUILDER_STATE.visualized = false;
+  renderCustomBouquetBuilder();
+}
+
+function toggleBouquetColor(productId, colorName) {
+  const colors = BOUQUET_BUILDER_STATE.selected.get(productId) || [];
+  const nextColors = colors.includes(colorName)
+    ? colors.filter(color => color !== colorName)
+    : [...colors, colorName];
+  BOUQUET_BUILDER_STATE.selected.set(productId, nextColors);
+  BOUQUET_BUILDER_STATE.visualized = false;
+  renderCustomBouquetBuilder();
+}
+
+function visualizeCustomBouquet() {
+  if (!selectedBouquetItems().length) {
+    showToast('Choose at least one flower stick to visualize.', true);
+    return;
+  }
+  BOUQUET_BUILDER_STATE.visualized = true;
+  renderCustomBouquetBuilder();
+}
+
+function resetCustomBouquet() {
+  BOUQUET_BUILDER_STATE.selected.clear();
+  BOUQUET_BUILDER_STATE.visualized = false;
+  renderCustomBouquetBuilder();
 }
 
 // Global listener: runs on every single page load
