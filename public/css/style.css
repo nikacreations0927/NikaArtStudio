@@ -2272,16 +2272,18 @@ body {
     white-space: normal;
   }
   .product-card-actions {
-    grid-template-columns: minmax(64px, 0.72fr) minmax(116px, 1.28fr);
-    gap: 0.45rem;
-    padding: 0.85rem;
+    grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr);
+    gap: 0.35rem;
+    padding: 0.75rem;
   }
   .product-card-actions .btn-outline,
   .product-card-actions .btn-primary {
     min-height: 40px;
-    padding-left: 0.55rem;
-    padding-right: 0.55rem;
-    font-size: 0.82rem;
+    min-width: 0;
+    padding-left: 0.38rem;
+    padding-right: 0.38rem;
+    font-size: 0.76rem;
+    white-space: normal;
   }
   .product-card-meta {
     display: block;

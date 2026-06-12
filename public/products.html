@@ -75,13 +75,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   initCustomBouquetBuilder();
 
   // Build category buttons dynamically
+  const params = new URLSearchParams(window.location.search);
+  const requestedCategory = (params.get('category') || 'all').toLowerCase();
   const categoryNames = CATEGORIES.length
     ? CATEGORIES.map(c => c.name)
     : [...new Set(PRODUCTS.map(p => p.category))];
   const cats = ['All', ...categoryNames];
+  const activeCategory = cats.map(c => c.toLowerCase()).includes(requestedCategory) ? requestedCategory : 'all';
   const filterBar = document.getElementById('filter-bar');
   filterBar.innerHTML = cats.map((c, i) =>
-    `<button class="filter-btn${i===0?' active':''}" data-cat="${c.toLowerCase()}">${c}</button>`
+    `<button class="filter-btn${c.toLowerCase() === activeCategory || (activeCategory === 'all' && i === 0) ? ' active' : ''}" data-cat="${c.toLowerCase()}">${c}</button>`
   ).join('');
 
   const grid = document.getElementById('product-grid');
@@ -93,12 +96,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       grid.innerHTML = `<div class="empty-cart"><p>No products in this category yet.</p></div>`;
     }
   }
-  render('all');
+  render(activeCategory);
 
   filterBar.addEventListener('click', e => {
     if (!e.target.matches('.filter-btn')) return;
     filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     e.target.classList.add('active');
+    const nextCategory = e.target.dataset.cat;
+    const nextUrl = nextCategory === 'all' ? '/shop' : `/shop?category=${encodeURIComponent(nextCategory)}`;
+    window.history.replaceState({}, '', nextUrl);
     render(e.target.dataset.cat);
   });
 });

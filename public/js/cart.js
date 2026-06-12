@@ -208,6 +208,18 @@ function addProductCardToCart(productId, prebook = false) {
   else addToCart(cartProduct);
 }
 
+function productCategoryUrl(product) {
+  const category = String(product.category || '').trim();
+  return category ? `/shop?category=${encodeURIComponent(category.toLowerCase())}` : '/shop';
+}
+
+function productDetailUrl(product) {
+  const category = String(product.category || '').trim();
+  const params = new URLSearchParams({ id: product.id });
+  if (category) params.set('category', category.toLowerCase());
+  return `/product?${params.toString()}`;
+}
+
 // Generates the HTML for individual products (with our premium animations!)
 // Inside public/js/cart.js
 function productCard(product) {
@@ -219,9 +231,10 @@ function productCard(product) {
   const isOut = Number(product.stock || 0) <= 0;
   const advance = prebookAdvanceAmount(product.price);
   const colors = normalizeColorOptions(product.colorOptions);
+  const detailUrl = productDetailUrl(product);
   return `
     <div class="product-card reveal">
-      <a href="/product?id=${encodeURIComponent(product.id)}" class="product-image-link" aria-label="View ${safeName}">
+      <a href="${detailUrl}" class="product-image-link" aria-label="View ${safeName}">
         <img src="${safeImage}" alt="${safeName}" class="product-img" loading="lazy">
       </a>
       <div class="product-card-meta">
@@ -234,7 +247,7 @@ function productCard(product) {
       ${safeDescription ? `<p class="product-card-desc">${safeDescription}</p>` : ''}
       ${colors.length ? productColorSelector(product) : ''}
       <div class="product-card-actions">
-        <a class="btn-outline" href="/product?id=${encodeURIComponent(product.id)}">View</a>
+        <a class="btn-outline" href="${detailUrl}">View</a>
         <button class="btn-primary" onclick="addProductCardToCart('${escapeJsString(product.id)}', ${isOut ? 'true' : 'false'})">
           ${isOut ? `Pre-book ${rupees(advance)}` : 'Add to cart'}
         </button>
