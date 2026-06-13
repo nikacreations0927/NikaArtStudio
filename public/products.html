@@ -41,23 +41,22 @@
   <p>Handcrafted originals, prints &amp; more</p>
 </div>
 
-<section class="section custom-bouquet-section" id="custom-bouquet">
-  <div class="section-header bouquet-builder-heading">
-    <div>
-      <p class="eyebrow">Custom bouquet</p>
-      <h2>Build your own bouquet</h2>
-      <p>Choose flower sticks and colours, preview the arrangement, then get an estimate.</p>
-    </div>
-  </div>
-  <div class="bouquet-builder" id="bouquet-builder">
-    <div class="bouquet-builder-empty">Loading flower choices...</div>
-  </div>
-</section>
-
 <!-- Category filter -->
-<section class="section">
+<section class="section shop-section" id="products">
   <div class="filter-bar" id="filter-bar">
     <button class="filter-btn active" data-cat="all">All</button>
+  </div>
+  <div class="custom-bouquet-section hidden" id="custom-bouquet">
+    <div class="section-header bouquet-builder-heading">
+      <div>
+        <p class="eyebrow">Custom bouquet</p>
+        <h2>Build your own bouquet</h2>
+        <p>Choose flower sticks and colours, preview the arrangement, then get an estimate.</p>
+      </div>
+    </div>
+    <div class="bouquet-builder" id="bouquet-builder">
+      <div class="bouquet-builder-empty">Loading flower choices...</div>
+    </div>
   </div>
   <div class="product-grid" id="product-grid"></div>
 </section>
@@ -76,20 +75,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Build category buttons dynamically
   const params = new URLSearchParams(window.location.search);
-  const requestedCategory = (params.get('category') || 'all').toLowerCase();
+  const categorySlug = value => String(value || '').trim().toLowerCase().replace(/\s+/g, '-');
+  const requestedCategory = categorySlug(params.get('category') || 'all');
   const categoryNames = CATEGORIES.length
     ? CATEGORIES.map(c => c.name)
     : [...new Set(PRODUCTS.map(p => p.category))];
-  const cats = ['All', ...categoryNames];
-  const activeCategory = cats.map(c => c.toLowerCase()).includes(requestedCategory) ? requestedCategory : 'all';
+  const cats = ['All', 'Custom Bouquet', ...categoryNames];
+  const categoryLookup = new Map(cats.map(c => [categorySlug(c), c]));
+  const activeCategory = categoryLookup.has(requestedCategory) ? requestedCategory : 'all';
   const filterBar = document.getElementById('filter-bar');
   filterBar.innerHTML = cats.map((c, i) =>
-    `<button class="filter-btn${c.toLowerCase() === activeCategory || (activeCategory === 'all' && i === 0) ? ' active' : ''}" data-cat="${c.toLowerCase()}">${c}</button>`
+    `<button class="filter-btn${categorySlug(c) === activeCategory || (activeCategory === 'all' && i === 0) ? ' active' : ''}" data-cat="${categorySlug(c)}">${c}</button>`
   ).join('');
 
   const grid = document.getElementById('product-grid');
+  const bouquetSection = document.getElementById('custom-bouquet');
   function render(cat) {
-    const list = cat === 'all' ? PRODUCTS : PRODUCTS.filter(p => p.category.toLowerCase() === cat);
+    const isCustomBouquet = cat === 'custom-bouquet';
+    bouquetSection?.classList.toggle('hidden', !isCustomBouquet);
+    grid.classList.toggle('hidden', isCustomBouquet);
+    if (isCustomBouquet) {
+      grid.innerHTML = '';
+      renderCustomBouquetBuilder();
+      return;
+    }
+    const categoryName = categoryLookup.get(cat) || '';
+    const list = cat === 'all' ? PRODUCTS : PRODUCTS.filter(p => categorySlug(p.category) === categorySlug(categoryName));
     if (list.length) {
       renderProducts(list, grid);
     } else {
@@ -97,15 +108,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   render(activeCategory);
+  if (window.location.hash === '#products' || (activeCategory !== 'all' && activeCategory !== 'custom-bouquet')) {
+    setTimeout(() => document.getElementById('products')?.scrollIntoView({ block: 'start' }), 0);
+  } else if (window.location.hash === '#custom-bouquet' || activeCategory === 'custom-bouquet') {
+    setTimeout(() => document.getElementById('custom-bouquet')?.scrollIntoView({ block: 'start' }), 0);
+  }
 
   filterBar.addEventListener('click', e => {
     if (!e.target.matches('.filter-btn')) return;
     filterBar.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     e.target.classList.add('active');
     const nextCategory = e.target.dataset.cat;
-    const nextUrl = nextCategory === 'all' ? '/shop' : `/shop?category=${encodeURIComponent(nextCategory)}`;
+    const nextUrl = nextCategory === 'all'
+      ? '/shop#products'
+      : `/shop?category=${encodeURIComponent(nextCategory)}#${nextCategory === 'custom-bouquet' ? 'custom-bouquet' : 'products'}`;
     window.history.replaceState({}, '', nextUrl);
     render(e.target.dataset.cat);
+    document.getElementById(nextCategory === 'custom-bouquet' ? 'custom-bouquet' : 'products')?.scrollIntoView({ block: 'start' });
   });
 });
 </script>

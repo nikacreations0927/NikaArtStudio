@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const id = params.get('id');
   const categoryParam = params.get('category');
   const detail = document.getElementById('product-detail');
-  const requestedBackHref = categoryParam ? `/shop?category=${encodeURIComponent(categoryParam.toLowerCase())}` : '/shop';
+  const requestedBackHref = categoryParam ? `/shop?category=${encodeURIComponent(categoryParam.toLowerCase())}#products` : '/shop#products';
 
   if (!id) {
     detail.innerHTML = `<div class="empty-cart-msg"><h2>Product not found</h2><a class="btn-primary" href="${requestedBackHref}">Back to shop</a></div>`;

@@ -210,7 +210,7 @@ function addProductCardToCart(productId, prebook = false) {
 
 function productCategoryUrl(product) {
   const category = String(product.category || '').trim();
-  return category ? `/shop?category=${encodeURIComponent(category.toLowerCase())}` : '/shop';
+  return category ? `/shop?category=${encodeURIComponent(category.toLowerCase())}#products` : '/shop#products';
 }
 
 function productDetailUrl(product) {
@@ -683,7 +683,8 @@ function bouquetFlowerProducts() {
 }
 
 function bouquetBaseImage() {
-  return PRODUCTS.find(product => product.category === 'Flowers' && /mixed lily bouquet/i.test(product.name))?.image
+  return PRODUCTS.find(product => product.category === 'Flowers' && /tulip daisy bouquet/i.test(product.name))?.image
+    || PRODUCTS.find(product => product.category === 'Flowers' && /mixed lily bouquet/i.test(product.name))?.image
     || PRODUCTS.find(product => product.category === 'Flowers' && /bouquet/i.test(product.name))?.image
     || PRODUCTS.find(product => product.category === 'Flowers')?.image
     || '';
@@ -790,14 +791,14 @@ function bouquetColorGroup(product) {
 
 function bouquetPreviewMarkup(items) {
   const positions = [
-    { left: 49, top: 24, scale: 1.08, angle: -2, z: 8 },
-    { left: 35, top: 35, scale: 0.94, angle: -12, z: 6 },
-    { left: 64, top: 34, scale: 0.96, angle: 10, z: 7 },
-    { left: 45, top: 45, scale: 0.86, angle: -6, z: 5 },
-    { left: 57, top: 47, scale: 0.86, angle: 7, z: 5 },
-    { left: 28, top: 49, scale: 0.76, angle: -16, z: 4 },
-    { left: 72, top: 50, scale: 0.76, angle: 14, z: 4 },
-    { left: 50, top: 57, scale: 0.76, angle: 0, z: 3 }
+    { left: 50, top: 43, scale: 1.02, angle: -2, z: 8 },
+    { left: 38, top: 46, scale: 0.94, angle: -10, z: 7 },
+    { left: 62, top: 46, scale: 0.94, angle: 9, z: 7 },
+    { left: 45, top: 50, scale: 0.88, angle: -5, z: 6 },
+    { left: 56, top: 50, scale: 0.88, angle: 6, z: 6 },
+    { left: 31, top: 52, scale: 0.78, angle: -14, z: 5 },
+    { left: 69, top: 52, scale: 0.78, angle: 13, z: 5 },
+    { left: 50, top: 55, scale: 0.78, angle: 0, z: 4 }
   ];
 
   return `
