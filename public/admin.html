@@ -6,7 +6,7 @@
   <title>Admin - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
+  <link rel="stylesheet" href="css/style.css?v=gallery-1" />
 </head>
 <body>
 <header class="site-header">
@@ -67,7 +67,13 @@
       <div class="product-editor-photo">
         <img id="edit-product-image-preview" alt="Product preview" />
         <div id="edit-product-image-empty">No photo</div>
-        <input id="edit-product-image-file" type="file" accept="image/png,image/jpeg,image/webp" />
+        <input id="edit-product-image-file" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+        <small class="muted-helper">Upload product angles, then choose the cover photo.</small>
+        <div id="edit-product-gallery" class="product-editor-gallery"></div>
+        <div class="gallery-url-add">
+          <input id="edit-product-gallery-url" type="url" placeholder="Paste Cloudinary image URL" />
+          <button class="btn-outline small-btn" type="button" onclick="addProductGalleryUrl()">Add URL</button>
+        </div>
       </div>
       <form class="product-editor-form" onsubmit="saveProductFromEditor(event)">
         <input id="edit-product-id" type="hidden" />
@@ -95,7 +101,7 @@
             <textarea id="edit-product-color-options" rows="3" placeholder="One per line: Yellow | Cloudinary image URL"></textarea>
           </label>
         </div>
-        <label>Image URL <input id="edit-product-image-url" readonly /></label>
+        <label>Default Image URL <input id="edit-product-image-url" readonly /></label>
         <div class="admin-modal-actions">
           <button class="btn-outline" type="button" onclick="closeProductEditor()">Cancel</button>
           <button class="btn-primary" type="submit">Save Changes</button>
@@ -106,6 +112,6 @@
 </div>
 
 <script src="js/site-assets.js?v=site-assets-1"></script>
-<script src="js/admin.js?v=admin-dashboard-orders-1"></script>
+<script src="js/admin.js?v=gallery-1"></script>
 </body>
 </html>

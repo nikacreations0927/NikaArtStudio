@@ -47,13 +47,60 @@ function normalizeColorOptions(value) {
     .slice(0, 12);
 }
 
+function normalizeProductImages(value, coverImage = '') {
+  const cover = cleanText(coverImage);
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+        .split(/[\n;]+/)
+        .flatMap(part => part.split(','));
+
+  const seen = new Set();
+  const images = raw
+    .map(item => {
+      if (item && typeof item === 'object') {
+        return {
+          url: cleanText(item.url || item.image || item.imageUrl),
+          alt: cleanText(item.alt || item.name),
+          isDefault: Boolean(item.isDefault || item.default || item.primary)
+        };
+      }
+      return { url: cleanText(item), alt: '', isDefault: false };
+    })
+    .filter(item => item.url)
+    .filter(item => {
+      const key = item.url.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
+
+  if (cover && !images.some(item => item.url === cover)) {
+    images.unshift({ url: cover, alt: '', isDefault: true });
+  }
+
+  if (!images.length) return [];
+
+  const defaultIndex = images.findIndex(item => item.isDefault || item.url === cover);
+  const resolvedDefaultIndex = defaultIndex >= 0 ? defaultIndex : 0;
+  return images.map((item, index) => ({ ...item, isDefault: index === resolvedDefaultIndex }));
+}
+
+function defaultImageFromGallery(images, fallback = '') {
+  const gallery = normalizeProductImages(images, fallback);
+  return gallery.find(item => item.isDefault)?.url || gallery[0]?.url || cleanText(fallback);
+}
+
 function cleanProductPayload(body, { partial = false } = {}) {
+  const productImages = normalizeProductImages(body.productImages ?? body.images, body.image);
   const product = {
     id: cleanText(body.id),
     name: cleanText(body.name),
     price: Number(body.price),
     category: cleanText(body.category),
-    image: cleanText(body.image),
+    image: defaultImageFromGallery(productImages, body.image),
+    productImages,
     description: cleanText(body.description),
     colorOptions: normalizeColorOptions(body.colorOptions ?? body.colors),
     stock: Number(body.stock),
@@ -150,9 +197,9 @@ router.post('/', requireAdmin, asyncHandler(async (req, res) => {
 
   await db.transaction(async (tx) => {
     await tx.run(`
-      INSERT INTO products (id, name, price, category, image, description, color_options, stock, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, product.name, product.price, product.category, product.image, product.description, JSON.stringify(product.colorOptions), product.stock, product.isActive ? 1 : 0]);
+      INSERT INTO products (id, name, price, category, image, product_images, description, color_options, stock, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, product.name, product.price, product.category, product.image, JSON.stringify(product.productImages), product.description, JSON.stringify(product.colorOptions), product.stock, product.isActive ? 1 : 0]);
     await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'CREATE_PRODUCT', ?, 'Initial product stock')`, [id, product.stock]);
   });
 
@@ -168,20 +215,23 @@ router.put('/:id', requireAdmin, asyncHandler(async (req, res) => {
     name: product.name || existing.name,
     price: Number.isInteger(product.price) && product.price >= 0 ? product.price : existing.price,
     category: product.category || existing.category,
-    image: product.image !== '' ? product.image : existing.image,
+    productImages: req.body.productImages === undefined && req.body.images === undefined
+      ? normalizeProductImages(existing.images, product.image || existing.image)
+      : normalizeProductImages(product.productImages, product.image || existing.image),
     description: product.description !== '' ? product.description : existing.description,
     colorOptions: req.body.colorOptions === undefined && req.body.colors === undefined ? existing.colorOptions : product.colorOptions,
     stock: Number.isInteger(product.stock) && product.stock >= 0 ? product.stock : existing.stock,
     isActive: req.body.isActive === undefined ? existing.isActive : product.isActive
   };
+  next.image = defaultImageFromGallery(next.productImages, product.image || existing.image);
   await ensureCategory(next.category);
 
   await db.transaction(async (tx) => {
     await tx.run(`
       UPDATE products
-      SET name = ?, price = ?, category = ?, image = ?, description = ?, color_options = ?, stock = ?, is_active = ?, updated_at = ${nowSql}
+      SET name = ?, price = ?, category = ?, image = ?, product_images = ?, description = ?, color_options = ?, stock = ?, is_active = ?, updated_at = ${nowSql}
       WHERE id = ?
-    `, [next.name, next.price, next.category, next.image, next.description, JSON.stringify(next.colorOptions), next.stock, next.isActive ? 1 : 0, req.params.id]);
+    `, [next.name, next.price, next.category, next.image, JSON.stringify(next.productImages), next.description, JSON.stringify(next.colorOptions), next.stock, next.isActive ? 1 : 0, req.params.id]);
 
     const stockDelta = next.stock - existing.stock;
     if (stockDelta !== 0) {
@@ -224,7 +274,8 @@ router.post('/:id/image', requireAdmin, asyncHandler(async (req, res) => {
     productName: existing.name,
     productId: req.params.id
   });
-  await db.run(`UPDATE products SET image = ?, updated_at = ${nowSql} WHERE id = ?`, [uploaded.url, req.params.id]);
+  const productImages = normalizeProductImages([{ url: uploaded.url, isDefault: true }], uploaded.url);
+  await db.run(`UPDATE products SET image = ?, product_images = ?, updated_at = ${nowSql} WHERE id = ?`, [uploaded.url, JSON.stringify(productImages), req.params.id]);
 
   res.json({ success: true, image: uploaded.url, storage: uploaded, product: await getProduct(req.params.id) });
 }));
@@ -300,6 +351,8 @@ router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
       const stock = Number.isInteger(Number(p.stock)) ? Number(p.stock) : 0;
       const category = String(p.category || '').trim();
       const colorOptions = normalizeColorOptions(p.colorOptions ?? p.colors);
+      const productImages = normalizeProductImages(p.productImages ?? p.images, p.image);
+      const image = defaultImageFromGallery(productImages, p.image);
 
       const existingCategory = await tx.get('SELECT * FROM categories WHERE lower(name) = lower(?)', [category]);
       if (!existingCategory) {
@@ -307,9 +360,9 @@ router.post('/bulk', requireAdmin, asyncHandler(async (req, res) => {
       }
 
       await tx.run(`
-        INSERT INTO products (id, name, price, category, image, description, color_options, stock, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-      `, [id, p.name.trim(), price, category, String(p.image || '').trim(), String(p.description || '').trim(), JSON.stringify(colorOptions), stock]);
+        INSERT INTO products (id, name, price, category, image, product_images, description, color_options, stock, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `, [id, p.name.trim(), price, category, image, JSON.stringify(productImages), String(p.description || '').trim(), JSON.stringify(colorOptions), stock]);
 
       await tx.run(`INSERT INTO inventory_events (product_id, type, quantity_delta, note) VALUES (?, 'BULK_CREATE', ?, 'Bulk CSV Upload')`, [id, stock]);
       addedCount++;

@@ -169,14 +169,66 @@ function withSelectedColor(product, selectedColor = '') {
     colorOptions: colors,
     selectedColor: color,
     color,
-    image: colorOption?.image || product.image,
+    image: colorOption?.image || defaultProductImage(product),
     cartKey: cartItemKey(product.id, color)
   };
 }
 
+function productGallery(product) {
+  const seen = new Set();
+  const gallery = Array.isArray(product.images) ? product.images : [];
+  const urls = gallery
+    .map(item => typeof item === 'string' ? item : item?.url || item?.image || item?.imageUrl || '')
+    .concat(product.image || '')
+    .map(url => String(url || '').trim())
+    .filter(Boolean)
+    .filter(url => {
+      const key = url.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return urls.length ? urls : ['https://via.placeholder.com/300?text=Art'];
+}
+
 function defaultProductImage(product) {
   const firstColor = normalizeColorOptions(product.colorOptions)[0];
-  return firstColor?.image || product.image || 'https://via.placeholder.com/300?text=Art';
+  return firstColor?.image || productGallery(product)[0];
+}
+
+function productImageCarousel(product, detailUrl = '') {
+  const images = productGallery(product);
+  const safeName = escapeHtml(product.name);
+  const image = `<img src="${escapeHtml(defaultProductImage(product))}" alt="${safeName}" class="product-img" loading="lazy">`;
+  const imageContent = detailUrl
+    ? `<a href="${detailUrl}" class="product-image-link" aria-label="View ${safeName}">${image}</a>`
+    : image;
+  const controls = images.length > 1
+    ? `
+      <button class="product-gallery-arrow prev" type="button" aria-label="Previous photo" onclick="advanceProductImage(event, '${escapeJsString(product.id)}', -1)">‹</button>
+      <button class="product-gallery-arrow next" type="button" aria-label="Next photo" onclick="advanceProductImage(event, '${escapeJsString(product.id)}', 1)">›</button>
+      <span class="product-gallery-count">1/${images.length}</span>
+    `
+    : '';
+  return `<div class="product-image-frame" data-product-id="${escapeHtml(product.id)}" data-gallery-index="0">${imageContent}${controls}</div>`;
+}
+
+function advanceProductImage(event, productId, delta) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  const product = PRODUCTS.find(item => item.id === productId);
+  if (!product) return;
+  const images = productGallery(product);
+  if (images.length <= 1) return;
+  const frame = event?.target?.closest('.product-image-frame') || document.querySelector(`.product-image-frame[data-product-id="${CSS.escape(productId)}"]`);
+  if (!frame) return;
+  const current = Number(frame.dataset.galleryIndex || 0);
+  const next = (current + delta + images.length) % images.length;
+  frame.dataset.galleryIndex = String(next);
+  const img = frame.querySelector('img');
+  if (img) img.src = images[next];
+  const count = frame.querySelector('.product-gallery-count');
+  if (count) count.textContent = `${next + 1}/${images.length}`;
 }
 
 function updateProductColorImage(select) {
@@ -186,6 +238,8 @@ function updateProductColorImage(select) {
   const cardImage = card?.querySelector('.product-img');
   if (cardImage) {
     cardImage.src = image;
+    const frame = cardImage.closest('.product-image-frame');
+    if (frame) frame.dataset.galleryIndex = '0';
     return;
   }
   const detailImage = document.querySelector('.product-detail-media img');
@@ -223,10 +277,8 @@ function productDetailUrl(product) {
 // Generates the HTML for individual products (with our premium animations!)
 // Inside public/js/cart.js
 function productCard(product) {
-  const imgSrc = defaultProductImage(product);
   const safeName = escapeHtml(product.name);
   const safeCategory = escapeHtml(product.category);
-  const safeImage = escapeHtml(imgSrc);
   const safeDescription = escapeHtml(product.description || '');
   const isOut = Number(product.stock || 0) <= 0;
   const advance = prebookAdvanceAmount(product.price);
@@ -234,9 +286,7 @@ function productCard(product) {
   const detailUrl = productDetailUrl(product);
   return `
     <div class="product-card reveal">
-      <a href="${detailUrl}" class="product-image-link" aria-label="View ${safeName}">
-        <img src="${safeImage}" alt="${safeName}" class="product-img" loading="lazy">
-      </a>
+      ${productImageCarousel(product, detailUrl)}
       <div class="product-card-meta">
         <div>
           <h3 style="margin: 0 0 0.2rem 0; font-family: var(--font-heading); font-size: 1.2rem;">${safeName}</h3>
@@ -280,7 +330,7 @@ function syncCartWithProducts() {
       const selectedColor = colors.length
         ? (colors.find(color => color.name.toLowerCase() === String(item.selectedColor || item.color || '').trim().toLowerCase())?.name || colors[0].name)
         : '';
-      const colorImage = colors.find(color => color.name === selectedColor)?.image || latest.image;
+      const colorImage = colors.find(color => color.name === selectedColor)?.image || defaultProductImage(latest);
       if (item.prebook) {
         if (latest.stock > 0) return null;
         return {
@@ -374,7 +424,7 @@ function addPrebookToCart(product) {
     name: product.name,
     price: advance,
     fullPrice: Number(product.price),
-    image: product.image,
+    image: colorAwareProduct.image,
     stock: Number(product.stock || 0),
     colorOptions: colorAwareProduct.colorOptions,
     selectedColor: colorAwareProduct.selectedColor,

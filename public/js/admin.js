@@ -9,6 +9,7 @@ let ADMIN_ORDERS = [];
 let ADMIN_PRODUCTS = [];
 let currentSiteContent = {}; 
 let adminConfirmResolver = null;
+let PRODUCT_EDITOR_IMAGES = [];
 const INVENTORY_STATE = {
   page: 1,
   pageSize: 25,
@@ -160,13 +161,8 @@ document.getElementById('product-editor-modal')?.addEventListener('click', event
   if (event.target.id === 'product-editor-modal') closeProductEditor();
 });
 document.getElementById('edit-product-image-file')?.addEventListener('change', event => {
-  const file = event.target.files?.[0];
-  if (!file) {
-    setProductEditorPreview(document.getElementById('edit-product-image-url')?.value || '');
-    return;
-  }
-  const previewUrl = URL.createObjectURL(file);
-  setProductEditorPreview(previewUrl);
+  addPendingProductImages(event.target.files);
+  event.target.value = '';
 });
 
 async function api(path, options = {}) {
@@ -621,8 +617,8 @@ function filterInventoryTable() {
 
 // --- Bulk CSV Logic ---
 function downloadCSVTemplate() {
-  const headers = "Name,Category,Price,Stock,Image,Description,Colors\n";
-  const sampleData = "Beer Happy Mug Keychain,Keychains,499,5,https://res.cloudinary.com/demo/image/upload/sample.jpg,Handmade crochet beer happy mug keychain,\"Yellow | https://res.cloudinary.com/demo/image/upload/yellow.jpg; Blue | https://res.cloudinary.com/demo/image/upload/blue.jpg\"\nCrochet Sunflower,Crochet,449,15,,Handmade yarn flower,";
+  const headers = "Name,Category,Price,Stock,Image,Description,Colors,Images\n";
+  const sampleData = "Beer Happy Mug Keychain,Keychains,499,5,https://res.cloudinary.com/demo/image/upload/sample.jpg,Handmade crochet beer happy mug keychain,\"Yellow | https://res.cloudinary.com/demo/image/upload/yellow.jpg; Blue | https://res.cloudinary.com/demo/image/upload/blue.jpg\",\"https://res.cloudinary.com/demo/image/upload/front.jpg; https://res.cloudinary.com/demo/image/upload/side.jpg\"\nCrochet Sunflower,Crochet,449,15,,Handmade yarn flower,,";
   
   const blob = new Blob([headers + sampleData], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
@@ -758,6 +754,7 @@ async function handleBulkCSV(event) {
       const imageIndex = indexOf('image', 'image url', 'image_url');
       const descriptionIndex = indexOf('description', 'desc') ?? (imageIndex === 4 ? 5 : 4);
       const colorsIndex = indexOf('colors', 'colours', 'color options', 'colour options');
+      const imagesIndex = indexOf('images', 'product images', 'gallery', 'gallery images');
 
       // Skip header row (index 0) and filter out empty rows
       const products = rows.slice(1).filter(row => row.length >= 4 && row[nameIndex] !== '').map(row => ({
@@ -767,7 +764,8 @@ async function handleBulkCSV(event) {
         stock: parseInt(row[stockIndex], 10) || 0,
         image: imageIndex === undefined ? '' : row[imageIndex] || '',
         description: row[descriptionIndex] || '',
-        colors: colorsIndex === undefined ? '' : row[colorsIndex] || ''
+        colors: colorsIndex === undefined ? '' : row[colorsIndex] || '',
+        images: imagesIndex === undefined ? [] : normalizeProductImages(row[imagesIndex] || '', row[imageIndex] || '')
       }));
 
       if (products.length === 0) throw new Error("No valid products found in CSV.");
@@ -839,6 +837,145 @@ function serializeColorOptions(colors = []) {
   return normalizeColorOptions(colors)
     .map(color => color.image ? `${color.name} | ${color.image}` : color.name)
     .join('\n');
+}
+
+function normalizeProductImages(value, fallback = '') {
+  const raw = Array.isArray(value) ? value : String(value || '').split(/[\n;]+/);
+  const fallbackUrl = String(fallback || '').trim();
+  const seen = new Set();
+  const images = raw
+    .map(item => {
+      if (item && typeof item === 'object') {
+        return {
+          url: String(item.url || item.image || item.imageUrl || '').trim(),
+          alt: String(item.alt || item.name || '').trim(),
+          isDefault: Boolean(item.isDefault || item.default || item.primary),
+          file: item.file || null,
+          pending: Boolean(item.pending)
+        };
+      }
+      return { url: String(item || '').trim(), alt: '', isDefault: false, file: null, pending: false };
+    })
+    .filter(item => item.url)
+    .filter(item => {
+      if (item.pending) return true;
+      const key = item.url.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  if (fallbackUrl && !images.some(item => !item.pending && item.url === fallbackUrl)) {
+    images.unshift({ url: fallbackUrl, alt: '', isDefault: true, file: null, pending: false });
+  }
+
+  if (!images.length) return [];
+  const defaultIndex = images.findIndex(item => item.isDefault);
+  const resolvedDefault = defaultIndex >= 0 ? defaultIndex : 0;
+  return images.map((item, index) => ({ ...item, isDefault: index === resolvedDefault }));
+}
+
+function setProductEditorGallery(images = [], fallback = '') {
+  PRODUCT_EDITOR_IMAGES.forEach(item => {
+    if (item.pending && item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url);
+  });
+  PRODUCT_EDITOR_IMAGES = normalizeProductImages(images, fallback);
+  renderProductEditorGallery();
+}
+
+function defaultEditorImage() {
+  return PRODUCT_EDITOR_IMAGES.find(item => item.isDefault)?.url || PRODUCT_EDITOR_IMAGES[0]?.url || '';
+}
+
+function renderProductEditorGallery() {
+  const gallery = document.getElementById('edit-product-gallery');
+  const imageUrlInput = document.getElementById('edit-product-image-url');
+  const defaultUrl = defaultEditorImage();
+  setProductEditorPreview(defaultUrl);
+  if (imageUrlInput) imageUrlInput.value = defaultUrl.startsWith('blob:') ? 'Pending upload' : defaultUrl;
+  if (!gallery) return;
+
+  gallery.innerHTML = PRODUCT_EDITOR_IMAGES.map((item, index) => `
+    <div class="gallery-image-row">
+      <img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.alt || `Product photo ${index + 1}`)}" />
+      <label class="gallery-default-choice">
+        <input type="radio" name="edit-product-default-image" ${item.isDefault ? 'checked' : ''} onchange="setProductGalleryDefault(${index})" />
+        Cover
+      </label>
+      <span>${item.pending ? 'New upload' : `Photo ${index + 1}`}</span>
+      <button class="btn-outline danger small-btn" type="button" onclick="removeProductGalleryImage(${index})">Remove</button>
+    </div>
+  `).join('') || '<p class="gallery-empty">No extra product photos yet.</p>';
+}
+
+function setProductGalleryDefault(index) {
+  PRODUCT_EDITOR_IMAGES = PRODUCT_EDITOR_IMAGES.map((item, itemIndex) => ({ ...item, isDefault: itemIndex === index }));
+  renderProductEditorGallery();
+}
+
+function removeProductGalleryImage(index) {
+  const removed = PRODUCT_EDITOR_IMAGES[index];
+  if (removed?.pending && removed.url?.startsWith('blob:')) URL.revokeObjectURL(removed.url);
+  PRODUCT_EDITOR_IMAGES.splice(index, 1);
+  if (PRODUCT_EDITOR_IMAGES.length && !PRODUCT_EDITOR_IMAGES.some(item => item.isDefault)) {
+    PRODUCT_EDITOR_IMAGES[0].isDefault = true;
+  }
+  renderProductEditorGallery();
+}
+
+function addPendingProductImages(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  if (PRODUCT_EDITOR_IMAGES.length + files.length > 12) {
+    showMessage('Use up to 12 photos per product.', true);
+    return;
+  }
+  const shouldDefault = PRODUCT_EDITOR_IMAGES.length === 0;
+  files.forEach((file, index) => {
+    PRODUCT_EDITOR_IMAGES.push({
+      url: URL.createObjectURL(file),
+      alt: file.name.replace(/\.[^.]+$/, ''),
+      isDefault: shouldDefault && index === 0,
+      file,
+      pending: true
+    });
+  });
+  renderProductEditorGallery();
+}
+
+function addProductGalleryUrl() {
+  const input = document.getElementById('edit-product-gallery-url');
+  const url = String(input?.value || '').trim();
+  if (!url) return;
+  if (PRODUCT_EDITOR_IMAGES.length >= 12) {
+    showMessage('Use up to 12 photos per product.', true);
+    return;
+  }
+  PRODUCT_EDITOR_IMAGES.push({ url, alt: '', isDefault: PRODUCT_EDITOR_IMAGES.length === 0, file: null, pending: false });
+  if (input) input.value = '';
+  PRODUCT_EDITOR_IMAGES = normalizeProductImages(PRODUCT_EDITOR_IMAGES);
+  renderProductEditorGallery();
+}
+
+async function uploadPendingProductGalleryImages(productId) {
+  const resolved = [];
+  for (const item of PRODUCT_EDITOR_IMAGES) {
+    if (!item.pending || !item.file) {
+      resolved.push(item);
+      continue;
+    }
+    const imageData = await readFileAsDataUrl(item.file);
+    const data = await api('/api/products/images/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        files: [{ name: `${productId}-${item.alt || 'product-photo'}`, imageData }]
+      })
+    });
+    const uploaded = data.uploaded?.[0];
+    if (!uploaded?.url) throw new Error(`Could not upload ${item.alt || item.file.name}.`);
+    resolved.push({ url: uploaded.url, alt: item.alt, isDefault: item.isDefault, file: null, pending: false });
+  }
+  return normalizeProductImages(resolved);
 }
 
 function toggleNewColorOptions() {
@@ -952,6 +1089,7 @@ function renderInventoryTable() {
       <td>
         <strong class="product-row-name">${escapeHtml(product.name)}</strong>
         <small>${escapeHtml(product.description || 'No description')}</small>
+        ${(product.images || []).length > 1 ? `<small class="product-row-colors">Photos: ${(product.images || []).length}</small>` : ''}
         ${colorOptionsSummary(product)}
       </td>
       <td>${escapeHtml(product.category)}</td>
@@ -1023,7 +1161,7 @@ function exportProductsCsv() {
     return;
   }
   const rows = [
-    ['ID', 'Name', 'Category', 'Price', 'Stock', 'Active', 'Image', 'Description', 'Colors'],
+    ['ID', 'Name', 'Category', 'Price', 'Stock', 'Active', 'Image', 'Description', 'Colors', 'Images'],
     ...ADMIN_PRODUCTS.map(product => [
       product.id,
       product.name,
@@ -1033,7 +1171,8 @@ function exportProductsCsv() {
       product.isActive ? 'yes' : 'no',
       product.image,
       product.description,
-      serializeColorOptions(product.colorOptions).replace(/\n/g, '; ')
+      serializeColorOptions(product.colorOptions).replace(/\n/g, '; '),
+      normalizeProductImages(product.images, product.image).map(item => item.url).join('; ')
     ])
   ];
   downloadCsv('nika_products.csv', rows);
@@ -1108,7 +1247,8 @@ function openProductEditor(id) {
   setProductColorFields(product.colorOptions || []);
   document.getElementById('edit-product-image-url').value = product.image || '';
   document.getElementById('edit-product-image-file').value = '';
-  setProductEditorPreview(product.image);
+  document.getElementById('edit-product-gallery-url').value = '';
+  setProductEditorGallery(product.images || [], product.image);
 
   const modal = document.getElementById('product-editor-modal');
   if (modal) modal.hidden = false;
@@ -1117,12 +1257,14 @@ function openProductEditor(id) {
 function closeProductEditor() {
   const modal = document.getElementById('product-editor-modal');
   if (modal) modal.hidden = true;
+  setProductEditorGallery([]);
 }
 
 async function saveProductFromEditor(event) {
   event.preventDefault();
   const id = document.getElementById('edit-product-id').value;
-  const imageFile = document.getElementById('edit-product-image-file').files[0];
+  const productImages = await uploadPendingProductGalleryImages(id);
+  const defaultImage = productImages.find(item => item.isDefault)?.url || productImages[0]?.url || '';
 
   await api(`/api/products/${id}`, {
     method: 'PUT',
@@ -1136,14 +1278,10 @@ async function saveProductFromEditor(event) {
       colorOptions: document.getElementById('edit-product-has-colors')?.value === 'yes'
         ? normalizeColorOptions(document.getElementById('edit-product-color-options')?.value)
         : [],
-      image: document.getElementById('edit-product-image-url').value
+      image: defaultImage,
+      images: productImages
     })
   });
-
-  if (imageFile) {
-    const imageData = await readFileAsDataUrl(imageFile);
-    await api(`/api/products/${id}/image`, { method: 'POST', body: JSON.stringify({ imageData }) });
-  }
 
   showMessage('Product updated.');
   closeProductEditor();

@@ -169,6 +169,7 @@ async function initSchema() {
       price INTEGER NOT NULL CHECK (price >= 0),
       category TEXT NOT NULL,
       image TEXT DEFAULT '',
+      product_images TEXT NOT NULL DEFAULT '[]',
       description TEXT DEFAULT '',
       color_options TEXT NOT NULL DEFAULT '[]',
       stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
@@ -257,6 +258,7 @@ async function initSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_provider_transaction_id TEXT;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_requested_at TIMESTAMPTZ;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_paid_at TIMESTAMPTZ;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS product_images TEXT NOT NULL DEFAULT '[]';
     ALTER TABLE products ADD COLUMN IF NOT EXISTS color_options TEXT NOT NULL DEFAULT '[]';
     ALTER TABLE order_items ADD COLUMN IF NOT EXISTS color_snapshot TEXT DEFAULT '';
   `);

@@ -40,6 +40,47 @@ function parseColorOptions(value) {
   return [];
 }
 
+function parseProductImages(value, coverImage = '') {
+  const cover = String(coverImage || '').trim();
+  const normalize = (items) => {
+    const seen = new Set();
+    const images = items
+      .map(item => {
+        if (item && typeof item === 'object') {
+          return {
+            url: String(item.url || item.image || item.imageUrl || '').trim(),
+            alt: String(item.alt || item.name || '').trim(),
+            isDefault: Boolean(item.isDefault || item.default || item.primary)
+          };
+        }
+        return { url: String(item || '').trim(), alt: '', isDefault: false };
+      })
+      .filter(item => item.url)
+      .filter(item => {
+        const key = item.url.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    if (cover && !images.some(item => item.url === cover)) {
+      images.unshift({ url: cover, alt: '', isDefault: true });
+    }
+
+    const defaultIndex = images.findIndex(item => item.isDefault || item.url === cover);
+    return images.map((item, index) => ({ ...item, isDefault: index === (defaultIndex >= 0 ? defaultIndex : 0) }));
+  };
+
+  if (Array.isArray(value)) return normalize(value);
+  try {
+    const parsed = JSON.parse(value || '[]');
+    if (Array.isArray(parsed)) return normalize(parsed);
+  } catch {
+    // Fall through to the single cover image fallback.
+  }
+  return cover ? [{ url: cover, alt: '', isDefault: true }] : [];
+}
+
 async function getCategories({ includeInactive = false } = {}) {
   const query = includeInactive
     ? 'SELECT * FROM categories ORDER BY name ASC'
@@ -60,7 +101,23 @@ async function createCategory(name) {
 
 function rowToProduct(row) {
   if (!row) return null;
-  return { id: row.id, name: row.name, price: row.price, category: row.category, image: row.image || '', description: row.description || '', colorOptions: parseColorOptions(row.color_options), stock: row.stock, isActive: Boolean(row.is_active), isDeleted: Boolean(row.is_deleted), createdAt: row.created_at, updatedAt: row.updated_at };
+  const images = parseProductImages(row.product_images, row.image);
+  const defaultImage = images.find(item => item.isDefault)?.url || row.image || images[0]?.url || '';
+  return {
+    id: row.id,
+    name: row.name,
+    price: row.price,
+    category: row.category,
+    image: defaultImage,
+    images,
+    description: row.description || '',
+    colorOptions: parseColorOptions(row.color_options),
+    stock: row.stock,
+    isActive: Boolean(row.is_active),
+    isDeleted: Boolean(row.is_deleted),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
 }
 
 async function getProducts({ includeInactive = false } = {}) {

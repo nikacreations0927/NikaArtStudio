@@ -6,7 +6,7 @@
   <title>Product - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
+  <link rel="stylesheet" href="css/style.css?v=gallery-1" />
 </head>
 <body>
 <header class="site-header">
@@ -31,7 +31,7 @@
 </footer>
 
 <script src="js/site-assets.js?v=site-assets-1"></script>
-<script src="js/cart.js"></script>
+<script src="js/cart.js?v=gallery-1"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const product = data.product;
     PRODUCTS = [product];
     document.title = `${product.name} - Nika Arts Studio`;
-    const img = defaultProductImage(product).replace('300?text=Art', '700?text=Art');
     const isOut = Number(product.stock || 0) <= 0;
     const colors = normalizeColorOptions(product.colorOptions);
     const backCategory = categoryParam || product.category;
@@ -66,7 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     detail.innerHTML = `
       <div class="product-detail-media">
-        <img src="${escapeHtml(img)}" alt="${escapeHtml(product.name)}" />
+        ${productImageCarousel(product)}
       </div>
       <div class="product-detail-info">
         <p class="eyebrow">${escapeHtml(product.category)}</p>
