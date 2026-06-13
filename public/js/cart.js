@@ -790,26 +790,24 @@ function bouquetColorGroup(product) {
 
 function bouquetPreviewMarkup(items) {
   const positions = [
-    { left: 49, top: 20, scale: 1.12, angle: 0 },
-    { left: 34, top: 31, scale: 0.98, angle: 7 },
-    { left: 64, top: 32, scale: 0.98, angle: -7 },
-    { left: 43, top: 42, scale: 0.92, angle: 4 },
-    { left: 57, top: 45, scale: 0.92, angle: -4 },
-    { left: 27, top: 46, scale: 0.78, angle: 11 },
-    { left: 72, top: 48, scale: 0.78, angle: -11 },
-    { left: 50, top: 55, scale: 0.8, angle: 0 }
+    { left: 49, top: 24, scale: 1.08, angle: -2, z: 8 },
+    { left: 35, top: 35, scale: 0.94, angle: -12, z: 6 },
+    { left: 64, top: 34, scale: 0.96, angle: 10, z: 7 },
+    { left: 45, top: 45, scale: 0.86, angle: -6, z: 5 },
+    { left: 57, top: 47, scale: 0.86, angle: 7, z: 5 },
+    { left: 28, top: 49, scale: 0.76, angle: -16, z: 4 },
+    { left: 72, top: 50, scale: 0.76, angle: 14, z: 4 },
+    { left: 50, top: 57, scale: 0.76, angle: 0, z: 3 }
   ];
 
   return `
     <div class="bouquet-render">
       ${items.slice(0, 8).map((item, index) => {
         const position = positions[index % positions.length];
-        return `<div class="bouquet-stem" style="--stem-left: ${position.left}%; --stem-top: ${position.top + 9}%; --stem-angle: ${position.angle}deg"></div>
-          <div class="bouquet-flower" title="${escapeHtml(item.product.name)} - ${escapeHtml(item.color.name)}" style="--flower-color: ${escapeHtml(item.color.value)}; --flower-left: ${position.left}%; --flower-top: ${position.top}%; --flower-scale: ${position.scale}">
-            <i></i><i></i><i></i><i></i><i></i><b></b>
+        return `<div class="bouquet-photo-flower" title="${escapeHtml(item.product.name)} - ${escapeHtml(item.color.name)}" style="--flower-left: ${position.left}%; --flower-top: ${position.top}%; --flower-scale: ${position.scale}; --flower-angle: ${position.angle}deg; --flower-z: ${position.z}; --flower-tint: ${escapeHtml(item.color.value)}">
+            <img src="${escapeHtml(item.product.image || '')}" alt="${escapeHtml(item.product.name)}">
           </div>`;
       }).join('')}
-      <div class="bouquet-wrap"></div>
     </div>
   `;
 }
