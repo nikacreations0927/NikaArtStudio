@@ -789,6 +789,11 @@ body {
   margin-bottom: 1rem;
 }
 
+.discount-row {
+  color: #16703c;
+  font-weight: 600;
+}
+
 /* ── CHECKOUT PAGE ── */
 .checkout-section {
   display: grid;
@@ -847,6 +852,50 @@ body {
   color: var(--muted);
   font-size: 0.8rem;
   margin-top: 0.35rem;
+}
+
+.discount-section {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.discount-section label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+}
+
+.discount-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: stretch;
+}
+
+.discount-code-row input {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--charcoal);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+
+.discount-code-row input:focus {
+  border-color: var(--terra);
+  outline: none;
+}
+
+.discount-code-row .btn-outline {
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .checkout-summary-col {
@@ -2411,5 +2460,11 @@ body {
   }
   .product-card-meta {
     display: block;
+  }
+  .discount-code-row {
+    grid-template-columns: 1fr;
+  }
+  .discount-code-row .btn-outline {
+    text-align: center;
   }
 }

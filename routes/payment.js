@@ -1,9 +1,10 @@
 // routes/payment.js
 const express = require('express');
-const { createOrderFromCart, getOrder, recordPayment, submitPrebookBalanceReference } = require('../db');
+const { createOrderFromCart, getOrder, quoteCartDiscount, recordPayment, submitPrebookBalanceReference } = require('../db');
 const asyncHandler = require('../middleware/asyncHandler');
 const { sendOrderPlacedAdminEmail, sendOrderPlacedCustomerEmail } = require('../services/email');
 const { optionalCustomer } = require('../middleware/customerAuth');
+const { nextDiscountMessage } = require('../services/discounts');
 
 const router = express.Router();
 const ORDER_EMAIL_TIMEOUT_MS = Number(process.env.ORDER_EMAIL_TIMEOUT_MS || 35000);
@@ -56,8 +57,26 @@ async function sendOrderPlacedEmailsWithTimeout(customer, order, options = {}) {
   return result;
 }
 
-router.post('/initiate', asyncHandler(async (req, res) => {
-  const { customer, items, cart, upiReference } = req.body;
+router.post('/discount/quote', optionalCustomer, asyncHandler(async (req, res) => {
+  const { customer, items, cart, discountCode } = req.body;
+  const orderItems = items || cart;
+  if (!orderItems) {
+    return res.status(400).json({ success: false, message: 'Cart items are required.' });
+  }
+
+  const quote = await quoteCartDiscount(orderItems, customer || {}, {
+    discountCode,
+    authenticatedCustomer: req.customer
+  });
+
+  res.json({
+    success: true,
+    ...quote
+  });
+}));
+
+router.post('/initiate', optionalCustomer, asyncHandler(async (req, res) => {
+  const { customer, items, cart, upiReference, discountCode } = req.body;
   const orderItems = items || cart;
   const reference = normalizeReference(upiReference);
 
@@ -74,7 +93,9 @@ router.post('/initiate', asyncHandler(async (req, res) => {
     id: orderId,
     paymentStatus: isPrebook ? 'PREBOOK_ADVANCE_PENDING' : 'UPI_PENDING_VERIFICATION',
     fulfillmentStatus: isPrebook ? 'PREBOOK_ADVANCE_PENDING' : 'PENDING',
-    paymentProvider: 'Manual UPI'
+    paymentProvider: 'Manual UPI',
+    discountCode,
+    authenticatedCustomer: req.customer
   });
 
   await recordPayment({
@@ -85,6 +106,8 @@ router.post('/initiate', asyncHandler(async (req, res) => {
     raw: {
       submittedByCustomer: true,
       upiReference: reference,
+      discountCode: order.discountCode || '',
+      discountAmount: order.discountAmount || 0,
       stage: isPrebook ? 'advance' : 'full',
       note: isPrebook
         ? 'Customer submitted pre-book advance UPI reference. Admin must verify before balance request.'
@@ -151,7 +174,8 @@ router.get('/status/:txnId', asyncHandler(async (req, res) => {
   res.json({
     success: true,
     status: order.paymentStatus,
-    manual: order.paymentProvider === 'Manual UPI'
+    manual: order.paymentProvider === 'Manual UPI',
+    nextDiscountMessage: nextDiscountMessage(order)
   });
 }));
 

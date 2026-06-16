@@ -17,7 +17,7 @@
   <meta name="twitter:image" content="https://yourdomain.com/images/hero.jpg" data-site-asset="logoImage" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=shop-pagination-1" />
+  <link rel="stylesheet" href="css/style.css?v=shop-pagination-discounts-1" />
 </head>
 <body>
 
@@ -71,17 +71,17 @@
 </footer>
 
 <script src="js/site-assets.js?v=site-assets-1"></script>
-<script src="js/cart.js?v=shop-pagination-1"></script>
+<script src="js/cart.js?v=shop-pagination-discounts-1"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await Promise.all([loadProducts(), loadCategories()]);
   initCustomBouquetBuilder();
 
-  const PRODUCTS_PER_PAGE = 18;
   let currentCategory = 'all';
   let currentProductList = [];
   let currentPage = 1;
+  let currentPageSize = productsPerPage();
 
   // Build category buttons dynamically
   const params = new URLSearchParams(window.location.search);
@@ -105,11 +105,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const prevPage = document.getElementById('shop-prev-page');
   const nextPage = document.getElementById('shop-next-page');
 
+  function productsPerPage() {
+    return window.matchMedia('(max-width: 600px)').matches ? 10 : 16;
+  }
+
   function updatePagination() {
-    const totalPages = Math.max(1, Math.ceil(currentProductList.length / PRODUCTS_PER_PAGE));
+    const pageSize = productsPerPage();
+    if (pageSize !== currentPageSize) {
+      currentPageSize = pageSize;
+      currentPage = 1;
+    }
+    const totalPages = Math.max(1, Math.ceil(currentProductList.length / pageSize));
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
-    const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
-    const pageItems = currentProductList.slice(start, start + PRODUCTS_PER_PAGE);
+    const start = (currentPage - 1) * pageSize;
+    const pageItems = currentProductList.slice(start, start + pageSize);
 
     if (pageItems.length) {
       renderProducts(pageItems, grid);
@@ -120,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (pagination) pagination.hidden = totalPages <= 1 || currentCategory === 'custom-bouquet';
     if (pageInfo) {
       const shownStart = currentProductList.length ? start + 1 : 0;
-      const shownEnd = Math.min(start + PRODUCTS_PER_PAGE, currentProductList.length);
+      const shownEnd = Math.min(start + pageSize, currentProductList.length);
       pageInfo.textContent = `Showing ${shownStart}-${shownEnd} of ${currentProductList.length} | Page ${currentPage} of ${totalPages}`;
     }
     if (prevPage) prevPage.disabled = currentPage <= 1;
@@ -174,6 +183,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     updatePagination();
     document.getElementById('products')?.scrollIntoView({ block: 'start' });
   });
+
+  window.addEventListener('resize', () => updatePagination());
 });
 </script>
 </body>

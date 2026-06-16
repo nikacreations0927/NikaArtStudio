@@ -1,5 +1,6 @@
 const { db, nowSql } = require('./connection');
 const { calculateShipping } = require('../services/shipping');
+const { evaluateDiscount } = require('../services/discounts');
 
 function rowToCategory(row) {
   if (!row) return null;
@@ -141,6 +142,9 @@ async function getOrder(id) {
     customer: JSON.parse(order.customer_json),
     subtotal: order.subtotal,
     shipping: order.shipping,
+    discountCode: order.discount_code || '',
+    discountPercent: order.discount_percent || 0,
+    discountAmount: order.discount_amount || 0,
     total: order.total,
     orderType: order.order_type || 'STANDARD',
     advanceAmount: order.advance_amount || 0,
@@ -213,23 +217,45 @@ async function createOrderFromCart(cart, customer, options = {}) {
       });
     }
 
+    const checkoutCustomer = {
+      ...customer,
+      ...(options.authenticatedCustomer ? {
+        customerId: options.authenticatedCustomer.id,
+        accountEmail: options.authenticatedCustomer.email
+      } : {})
+    };
     const subtotal = validatedItems.reduce((sum, item) => sum + item.lineTotal, 0);
     const shipping = calculateShipping(subtotal);
-    const total = subtotal + shipping;
-    const advanceAmount = orderType === 'PREBOOK' ? Math.ceil(subtotal / 2) : 0;
+    const discount = await evaluateDiscount({
+      code: options.discountCode,
+      subtotal,
+      customer: options.authenticatedCustomer,
+      checkoutCustomer,
+      orderType
+    });
+    if (options.discountCode && !discount.eligible) {
+      throw new Error(discount.message);
+    }
+    const discountAmount = discount.eligible ? discount.amount : 0;
+    const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+    const total = discountedSubtotal + shipping;
+    const advanceAmount = orderType === 'PREBOOK' ? Math.ceil(discountedSubtotal / 2) : 0;
     const balanceAmount = orderType === 'PREBOOK' ? total - advanceAmount : 0;
 
     await tx.run(`
       INSERT INTO orders (
-        id, customer_json, subtotal, shipping, total, order_type, advance_amount, balance_amount,
+        id, customer_json, subtotal, shipping, discount_code, discount_percent, discount_amount, total, order_type, advance_amount, balance_amount,
         payment_status, fulfillment_status, logistics_status, payment_provider
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_CREATED', ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_CREATED', ?)
     `, [
       orderId,
-      JSON.stringify(customer),
+      JSON.stringify(checkoutCustomer),
       subtotal,
       shipping,
+      discount.eligible ? discount.code : '',
+      discount.eligible ? discount.percent : 0,
+      discountAmount,
       total,
       orderType,
       advanceAmount,
@@ -249,6 +275,32 @@ async function createOrderFromCart(cart, customer, options = {}) {
   });
 
   return getOrder(orderId);
+}
+
+async function quoteCartDiscount(cart, customer, options = {}) {
+  if (!cart || !cart.length) throw new Error('Cart items are required.');
+  const validatedItems = [];
+  for (const item of cart) {
+    const productId = item.productId || item.id;
+    const qty = Number(item.qty);
+    if (!productId || !Number.isInteger(qty) || qty <= 0) throw new Error('Invalid cart item.');
+    const product = await getProduct(productId);
+    if (!product || !product.isActive) throw new Error(`Product is unavailable: ${productId}`);
+    validatedItems.push({ lineTotal: product.price * qty });
+  }
+
+  const subtotal = validatedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const shipping = calculateShipping(subtotal);
+  const discount = await evaluateDiscount({
+    code: options.discountCode,
+    subtotal,
+    customer: options.authenticatedCustomer,
+    checkoutCustomer: customer,
+    orderType: cart.some(item => item.prebook === true || item.orderType === 'PREBOOK') ? 'PREBOOK' : 'STANDARD'
+  });
+  const discountAmount = discount.eligible ? discount.amount : 0;
+  const total = Math.max(0, subtotal - discountAmount) + shipping;
+  return { subtotal, shipping, total, discount };
 }
 
 async function listOrders({ limit = 100 } = {}) {
@@ -622,6 +674,7 @@ module.exports = {
   getProducts,
   listOrders,
   createOrderFromCart,
+  quoteCartDiscount,
   markOrderPaid,
   markPrebookAdvancePaid,
   markPrebookBalancePaid,

@@ -185,7 +185,7 @@ async function createOrder(orderData) {
     shipping_charges: shipping || 0,
     giftwrap_charges: 0,
     transaction_charges: 0,
-    total_discount: 0,
+    total_discount: Number(orderData.discountAmount || 0),
     sub_total: items.reduce((sum, item) => sum + item.price * item.qty, 0),
     length: 20,
     breadth: 15,

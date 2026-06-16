@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { nextDiscountMessage } = require('./discounts');
 
 const BRAND = {
   green: '#1A2E1A',
@@ -123,10 +124,18 @@ function orderItemsTable(order = {}) {
 
 function totalsTable(order = {}, options = {}) {
   const rows = [
-    ['Subtotal', rupees(order.subtotal)],
-    ['Shipping', Number(order.shipping || 0) === 0 ? 'Free' : rupees(order.shipping)],
-    ['Order total', rupees(order.total)]
+    ['Subtotal', rupees(order.subtotal)]
   ];
+
+  if (Number(order.discountAmount || 0) > 0) {
+    rows.push([
+      `Discount${order.discountCode ? ` (${order.discountCode})` : ''}`,
+      `-${rupees(order.discountAmount)}`
+    ]);
+  }
+
+  rows.push(['Shipping', Number(order.shipping || 0) === 0 ? 'Free' : rupees(order.shipping)]);
+  rows.push(['Order total', rupees(order.total)]);
 
   if (order.orderType === 'PREBOOK') {
     rows.push(['Advance amount', rupees(order.advanceAmount)]);
@@ -414,7 +423,8 @@ async function sendOrderPlacedCustomerEmail(customer, order, options = {}) {
     ? 'We received your pre-book advance UPI reference. Admin verification is pending.'
     : stage === 'balance'
       ? 'We received your pre-book balance UPI reference. Admin verification is pending.'
-      : 'We received your UPI payment reference. Admin verification is pending before packing starts.';
+    : 'We received your UPI payment reference. Admin verification is pending before packing starts.';
+  const discountMessage = nextDiscountMessage(order);
 
   const html = brandedEmail({
     title: 'Order received',
@@ -431,6 +441,7 @@ async function sendOrderPlacedCustomerEmail(customer, order, options = {}) {
       </div>
       ${orderItemsTable(order)}
       ${totalsTable(order, { amountLabel, amountValue })}
+      ${discountMessage ? `<div style="padding:12px 14px; background:${BRAND.creamAlt}; border:1px solid ${BRAND.border}; border-radius:10px; margin: 16px 0; color:${BRAND.green}; font-size:14px;">${escapeHtml(discountMessage)}</div>` : ''}
       <p style="margin:16px 0 0; color:${BRAND.muted}; font-size:14px;">Shiprocket tracking will be updated after payment is verified and the order is handed over for shipping.</p>
     `
   });
@@ -494,6 +505,7 @@ async function sendPaymentConfirmedCustomerEmail(customer, order, options = {}) 
   const statusLine = stage === 'advance'
     ? 'Your pre-book advance payment has been verified. We will notify you when stock is ready for the remaining amount.'
     : 'Your UPI payment has been verified. Your order is confirmed and will now move toward shipping.';
+  const discountMessage = nextDiscountMessage(order);
 
   const html = brandedEmail({
     title: 'Payment confirmed',
@@ -510,6 +522,7 @@ async function sendPaymentConfirmedCustomerEmail(customer, order, options = {}) 
       </div>
       ${orderItemsTable(order)}
       ${totalsTable(order)}
+      ${discountMessage ? `<div style="padding:12px 14px; background:${BRAND.creamAlt}; border:1px solid ${BRAND.border}; border-radius:10px; margin: 16px 0; color:${BRAND.green}; font-size:14px;">${escapeHtml(discountMessage)}</div>` : ''}
       <p style="margin:16px 0 0; color:${BRAND.muted}; font-size:14px;">Shiprocket tracking will appear on the tracking page once the shipment is created.</p>
     `
   });

@@ -41,7 +41,7 @@ const nowSql = 'CURRENT_TIMESTAMP';
 const DEFAULT_CATEGORIES = [
   'Crochet',
   'Keychains',
-  'Flowers',
+  'Forever Flowers',
   'Photo Magnets',
   'Dream Catchers',
   'Hair Accessories'
@@ -192,6 +192,9 @@ async function initSchema() {
       customer_json TEXT NOT NULL,
       subtotal INTEGER NOT NULL DEFAULT 0,
       shipping INTEGER NOT NULL DEFAULT 0,
+      discount_code TEXT DEFAULT '',
+      discount_percent INTEGER NOT NULL DEFAULT 0,
+      discount_amount INTEGER NOT NULL DEFAULT 0,
       total INTEGER NOT NULL DEFAULT 0,
       order_type TEXT NOT NULL DEFAULT 'STANDARD',
       advance_amount INTEGER NOT NULL DEFAULT 0,
@@ -263,6 +266,9 @@ async function initSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'STANDARD';
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS advance_amount INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_amount INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_code TEXT DEFAULT '';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_provider_transaction_id TEXT;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_requested_at TIMESTAMPTZ;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS balance_paid_at TIMESTAMPTZ;
@@ -404,6 +410,20 @@ async function seedDatabase() {
     await db.run(`INSERT INTO settings (key, value) VALUES ('site_content', ?) ON CONFLICT (key) DO NOTHING`, [JSON.stringify(defaultContent)]);
   } catch (err) {
     console.error('Failed to seed default content:', err);
+  }
+
+  try {
+    await db.run(`UPDATE products SET category = 'Forever Flowers', updated_at = ${nowSql} WHERE lower(category) = 'flowers'`);
+    const foreverFlowers = await db.get('SELECT id FROM categories WHERE lower(name) = lower(?)', ['Forever Flowers']);
+    const legacyFlowers = await db.get('SELECT id FROM categories WHERE lower(name) = lower(?)', ['Flowers']);
+    if (legacyFlowers && !foreverFlowers) {
+      await db.run(`UPDATE categories SET name = 'Forever Flowers', is_active = 1, updated_at = ${nowSql} WHERE id = ?`, [legacyFlowers.id]);
+    } else if (legacyFlowers && foreverFlowers) {
+      await db.run(`UPDATE categories SET is_active = 0, updated_at = ${nowSql} WHERE id = ?`, [legacyFlowers.id]);
+      await db.run(`UPDATE categories SET is_active = 1, updated_at = ${nowSql} WHERE id = ?`, [foreverFlowers.id]);
+    }
+  } catch (err) {
+    console.error('Failed to migrate Flowers category name:', err);
   }
 
   try {

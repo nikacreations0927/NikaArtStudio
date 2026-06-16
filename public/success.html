@@ -6,7 +6,7 @@
   <title>Order Received - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
+  <link rel="stylesheet" href="css/style.css?v=discounts-1" />
 </head>
 <body>
 <header class="site-header">
@@ -24,6 +24,7 @@
     <h2 id="success-title">Order received</h2>
     <p id="success-msg">Thank you for your order.</p>
     <p id="order-id-display" style="color:#888; font-size:13px;"></p>
+    <p id="next-discount-message" class="field-note" style="margin-top:0.75rem;"></p>
     <div class="success-actions" id="success-actions"></div>
     <a href="/shop" class="btn-primary" style="margin-top:1.5rem">Continue shopping</a>
   </div>
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? 'Your advance payment reference has been submitted. We will verify it and notify you when stock is ready for the remaining payment.'
         : 'Your UPI reference has been submitted. We will verify the payment and then prepare your order.';
     document.getElementById('order-id-display').textContent = 'Order ID: ' + txnId;
+    document.getElementById('next-discount-message').textContent = data.nextDiscountMessage || '';
     document.getElementById('success-actions').innerHTML = `<a href="/track-order?order=${encodeURIComponent(txnId)}" class="btn-outline" style="margin-top:1rem">Track this order</a>`;
     saveCart([]);
     updateCartCount();

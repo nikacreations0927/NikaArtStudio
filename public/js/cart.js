@@ -577,7 +577,7 @@ function changeQty(key, delta) {
     }
     item.qty += delta;
     if (item.qty <= 0) {
-      removeFromCart(id);
+      removeFromCart(key);
       return;
     }
     if (item.qty > item.stock) {
@@ -681,6 +681,11 @@ const BOUQUET_BUILDER_STATE = {
   visualized: false
 };
 
+function isForeverFlowerProduct(product) {
+  const category = String(product?.category || '').trim().toLowerCase();
+  return category === 'forever flowers' || category === 'flowers';
+}
+
 function bouquetPaletteFor(productName) {
   const name = String(productName || '').toLowerCase();
   if (name.includes('sunflower')) return [{ name: 'Yellow', value: '#e4aa18' }];
@@ -728,15 +733,15 @@ function bouquetPaletteFor(productName) {
 
 function bouquetFlowerProducts() {
   return PRODUCTS
-    .filter(product => product.category === 'Flowers' && /sticks/i.test(product.name))
+    .filter(product => isForeverFlowerProduct(product) && /sticks/i.test(product.name))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function bouquetBaseImage() {
-  return PRODUCTS.find(product => product.category === 'Flowers' && /tulip daisy bouquet/i.test(product.name))?.image
-    || PRODUCTS.find(product => product.category === 'Flowers' && /mixed lily bouquet/i.test(product.name))?.image
-    || PRODUCTS.find(product => product.category === 'Flowers' && /bouquet/i.test(product.name))?.image
-    || PRODUCTS.find(product => product.category === 'Flowers')?.image
+  return PRODUCTS.find(product => isForeverFlowerProduct(product) && /tulip daisy bouquet/i.test(product.name))?.image
+    || PRODUCTS.find(product => isForeverFlowerProduct(product) && /mixed lily bouquet/i.test(product.name))?.image
+    || PRODUCTS.find(product => isForeverFlowerProduct(product) && /bouquet/i.test(product.name))?.image
+    || PRODUCTS.find(product => isForeverFlowerProduct(product))?.image
     || '';
 }
 

@@ -6,7 +6,7 @@
   <title>Checkout - Nika Arts Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=prebook-1" />
+  <link rel="stylesheet" href="css/style.css?v=discounts-1" />
 </head>
 <body>
 
@@ -81,6 +81,15 @@
     <h3>Order summary</h3>
     <div class="order-items" id="order-items"></div>
     <div class="summary-row"><span>Subtotal</span><span id="co-subtotal">Rs. 0</span></div>
+    <div class="discount-section">
+      <label for="discount-code">Discount code</label>
+      <div class="discount-code-row">
+        <input type="text" id="discount-code" placeholder="NIKA5 or NIKA8" autocomplete="off" />
+        <button type="button" class="btn-outline" onclick="applyDiscountCode()">Apply</button>
+      </div>
+      <p id="discount-note" class="field-note"></p>
+    </div>
+    <div class="summary-row discount-row" id="co-discount-row" hidden><span id="co-discount-label">Discount</span><span id="co-discount">-Rs. 0</span></div>
     <div class="summary-row"><span>Shipping</span><span id="co-shipping">Rs. 0</span></div>
     <p id="shipping-policy-note" class="field-note shipping-policy-note"></p>
     <div class="summary-row total-row"><span id="co-total-label">Total</span><span id="co-total">Rs. 0</span></div>
@@ -113,14 +122,20 @@
 <script>
 let CHECKOUT_TOTAL = 0;
 let CHECKOUT_IS_PREBOOK = false;
+let CHECKOUT_BASE_TOTALS = null;
+let CHECKOUT_DISCOUNT = { code: '', eligible: false, percent: 0, amount: 0, message: '' };
+let CHECKOUT_CUSTOMER = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await loadProducts();
   await loadStoreConfig();
   syncCartWithProducts();
-  await prefillCustomer();
+  CHECKOUT_CUSTOMER = await prefillCustomer();
   document.getElementById('pincode').addEventListener('blur', checkServiceability);
+  ['firstName', 'lastName', 'email', 'phone'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', resetDiscountQuote);
+  });
   const cart = getCart();
   if (cart.length === 0) { window.location.href = '/cart'; return; }
 
@@ -133,22 +148,108 @@ document.addEventListener('DOMContentLoaded', async () => {
   `).join('');
 
   const { subtotal, shipping, total, fullSubtotal, fullTotal, balanceDue, prebook } = calculateCartTotals(cart);
-  CHECKOUT_TOTAL = total;
   CHECKOUT_IS_PREBOOK = prebook;
+  CHECKOUT_BASE_TOTALS = { subtotal, shipping, total, fullSubtotal, fullTotal, balanceDue, prebook };
+  CHECKOUT_TOTAL = total;
   document.querySelector('.payment-label').textContent = prebook ? 'Manual UPI pre-book advance' : 'Manual UPI payment';
-  document.getElementById('co-subtotal').textContent = prebook ? rupees(fullSubtotal) : rupees(subtotal);
-  document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : rupees(shipping);
-  document.getElementById('co-total').textContent = prebook ? rupees(total) : rupees(fullTotal);
-  document.getElementById('co-total-label').textContent = prebook ? 'Pay advance now' : 'Total';
-  document.getElementById('shipping-policy-note').textContent = prebook
-    ? `${shippingPolicyText()} Pay ${rupees(total)} advance now. Balance after stock is ready: ${rupees(balanceDue)}.`
-    : shippingPolicyText();
+  renderCheckoutTotals();
+  setInitialDiscountNote();
   await loadPaymentConfigForTotal(total);
   renderManualUpiDetails(total);
   if (prebook) {
     document.getElementById('pay-btn').textContent = 'Submit pre-book advance for verification';
   }
 });
+
+function checkoutCustomerFromForm() {
+  return {
+    firstName: document.getElementById('firstName').value.trim(),
+    lastName: document.getElementById('lastName').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    address: document.getElementById('address').value.trim(),
+    city: document.getElementById('city').value.trim(),
+    state: document.getElementById('state').value.trim(),
+    pincode: document.getElementById('pincode').value.trim()
+  };
+}
+
+function setInitialDiscountNote() {
+  const note = document.getElementById('discount-note');
+  if (!note) return;
+  note.textContent = CHECKOUT_CUSTOMER
+    ? 'Use NIKA5 for your first order, or NIKA8 after your first completed purchase.'
+    : 'Create an account or log in to use NIKA5 for 5% off your first order.';
+}
+
+function resetDiscountQuote() {
+  if (!CHECKOUT_DISCOUNT.eligible) return;
+  CHECKOUT_DISCOUNT = { code: '', eligible: false, percent: 0, amount: 0, message: '' };
+  renderCheckoutTotals();
+  setInitialDiscountNote();
+}
+
+function renderCheckoutTotals() {
+  if (!CHECKOUT_BASE_TOTALS) return;
+  const { subtotal, shipping, total, fullSubtotal, fullTotal, balanceDue, prebook } = CHECKOUT_BASE_TOTALS;
+  const discountAmount = CHECKOUT_DISCOUNT.eligible ? Number(CHECKOUT_DISCOUNT.amount || 0) : 0;
+  const discountedFullTotal = Math.max(0, fullSubtotal - discountAmount) + shipping;
+  const discountedAdvance = prebook ? Math.ceil(Math.max(0, fullSubtotal - discountAmount) / 2) : discountedFullTotal;
+  CHECKOUT_TOTAL = prebook ? discountedAdvance : discountedFullTotal;
+
+  document.getElementById('co-subtotal').textContent = prebook ? rupees(fullSubtotal) : rupees(subtotal);
+  document.getElementById('co-shipping').textContent = shipping === 0 ? 'FREE' : rupees(shipping);
+  document.getElementById('co-total').textContent = rupees(CHECKOUT_TOTAL);
+  document.getElementById('co-total-label').textContent = prebook ? 'Pay advance now' : 'Total';
+  document.getElementById('shipping-policy-note').textContent = prebook
+    ? `${shippingPolicyText()} Pay ${rupees(CHECKOUT_TOTAL)} advance now. Balance after stock is ready: ${rupees(Math.max(0, discountedFullTotal - CHECKOUT_TOTAL))}.`
+    : shippingPolicyText();
+
+  const discountRow = document.getElementById('co-discount-row');
+  if (discountRow) {
+    discountRow.hidden = !discountAmount;
+    document.getElementById('co-discount-label').textContent = CHECKOUT_DISCOUNT.code ? `Discount (${CHECKOUT_DISCOUNT.code})` : 'Discount';
+    document.getElementById('co-discount').textContent = `-${rupees(discountAmount)}`;
+  }
+
+  renderManualUpiDetails(CHECKOUT_TOTAL);
+}
+
+async function applyDiscountCode() {
+  const code = document.getElementById('discount-code').value.trim().toUpperCase();
+  const note = document.getElementById('discount-note');
+  if (!code) {
+    CHECKOUT_DISCOUNT = { code: '', eligible: false, percent: 0, amount: 0, message: '' };
+    renderCheckoutTotals();
+    setInitialDiscountNote();
+    return;
+  }
+
+  note.textContent = 'Checking discount...';
+  try {
+    const res = await fetch('/api/payment/discount/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer: checkoutCustomerFromForm(),
+        items: getCart(),
+        discountCode: code
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.message || 'Could not verify discount code.');
+
+    CHECKOUT_DISCOUNT = data.discount || { code, eligible: false, percent: 0, amount: 0, message: '' };
+    note.textContent = CHECKOUT_DISCOUNT.message || (CHECKOUT_DISCOUNT.eligible ? 'Discount applied.' : 'Discount not available.');
+    renderCheckoutTotals();
+    await loadPaymentConfigForTotal(CHECKOUT_TOTAL);
+    renderManualUpiDetails(CHECKOUT_TOTAL);
+  } catch (err) {
+    CHECKOUT_DISCOUNT = { code: '', eligible: false, percent: 0, amount: 0, message: '' };
+    renderCheckoutTotals();
+    note.textContent = err.message;
+  }
+}
 
 async function loadPaymentConfigForTotal(total) {
   if (!Number.isFinite(Number(total)) || Number(total) <= 0) return;
@@ -249,7 +350,8 @@ async function submitManualUpiOrder() {
   const btn = document.getElementById('pay-btn');
   const errDiv = document.getElementById('pay-error');
   const cart = getCart();
-    const { shipping, total } = calculateCartTotals(cart);
+  const shipping = CHECKOUT_BASE_TOTALS?.shipping || calculateCartTotals(cart).shipping;
+  const total = CHECKOUT_TOTAL || calculateCartTotals(cart).total;
 
   btn.disabled = true;
     btn.textContent = CHECKOUT_IS_PREBOOK ? 'Submitting pre-book...' : 'Submitting order...';
@@ -268,7 +370,8 @@ async function submitManualUpiOrder() {
     items: cart,
     total,
     shipping,
-    upiReference: document.getElementById('upi-reference').value.trim()
+    upiReference: document.getElementById('upi-reference').value.trim(),
+    discountCode: CHECKOUT_DISCOUNT.eligible ? CHECKOUT_DISCOUNT.code : ''
   };
 
   try {
@@ -296,14 +399,16 @@ async function prefillCustomer() {
   try {
     const res = await fetch('/api/auth/me');
     const data = await res.json();
-    if (!res.ok || !data.success) return;
+    if (!res.ok || !data.success) return null;
     const customer = data.customer;
     document.getElementById('firstName').value = customer.firstName || '';
     document.getElementById('lastName').value = customer.lastName || '';
     document.getElementById('email').value = customer.email || '';
     document.getElementById('phone').value = customer.mobile || customer.phone || '';
+    return customer;
   } catch {
     // Guest checkout remains available.
+    return null;
   }
 }
 
