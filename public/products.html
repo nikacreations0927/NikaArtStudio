@@ -17,7 +17,7 @@
   <meta name="twitter:image" content="https://yourdomain.com/images/hero.jpg" data-site-asset="logoImage" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=gallery-1" />
+  <link rel="stylesheet" href="css/style.css?v=shop-pagination-1" />
 </head>
 <body>
 
@@ -59,6 +59,11 @@
     </div>
   </div>
   <div class="product-grid" id="product-grid"></div>
+  <div class="shop-pagination" id="shop-pagination" hidden>
+    <button class="btn-outline" id="shop-prev-page" type="button">Previous</button>
+    <span id="shop-page-info">Page 1 of 1</span>
+    <button class="btn-outline" id="shop-next-page" type="button">Next</button>
+  </div>
 </section>
 
 <footer class="site-footer">
@@ -66,12 +71,17 @@
 </footer>
 
 <script src="js/site-assets.js?v=site-assets-1"></script>
-<script src="js/cart.js?v=gallery-1"></script>
+<script src="js/cart.js?v=shop-pagination-1"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
   updateCartCount();
   await Promise.all([loadProducts(), loadCategories()]);
   initCustomBouquetBuilder();
+
+  const PRODUCTS_PER_PAGE = 18;
+  let currentCategory = 'all';
+  let currentProductList = [];
+  let currentPage = 1;
 
   // Build category buttons dynamically
   const params = new URLSearchParams(window.location.search);
@@ -90,22 +100,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const grid = document.getElementById('product-grid');
   const bouquetSection = document.getElementById('custom-bouquet');
-  function render(cat) {
+  const pagination = document.getElementById('shop-pagination');
+  const pageInfo = document.getElementById('shop-page-info');
+  const prevPage = document.getElementById('shop-prev-page');
+  const nextPage = document.getElementById('shop-next-page');
+
+  function updatePagination() {
+    const totalPages = Math.max(1, Math.ceil(currentProductList.length / PRODUCTS_PER_PAGE));
+    currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
+    const pageItems = currentProductList.slice(start, start + PRODUCTS_PER_PAGE);
+
+    if (pageItems.length) {
+      renderProducts(pageItems, grid);
+    } else {
+      grid.innerHTML = `<div class="empty-cart"><p>No products in this category yet.</p></div>`;
+    }
+
+    if (pagination) pagination.hidden = totalPages <= 1 || currentCategory === 'custom-bouquet';
+    if (pageInfo) {
+      const shownStart = currentProductList.length ? start + 1 : 0;
+      const shownEnd = Math.min(start + PRODUCTS_PER_PAGE, currentProductList.length);
+      pageInfo.textContent = `Showing ${shownStart}-${shownEnd} of ${currentProductList.length} | Page ${currentPage} of ${totalPages}`;
+    }
+    if (prevPage) prevPage.disabled = currentPage <= 1;
+    if (nextPage) nextPage.disabled = currentPage >= totalPages;
+  }
+
+  function render(cat, page = 1) {
+    currentCategory = cat;
+    currentPage = page;
     const isCustomBouquet = cat === 'custom-bouquet';
     bouquetSection?.classList.toggle('hidden', !isCustomBouquet);
     grid.classList.toggle('hidden', isCustomBouquet);
     if (isCustomBouquet) {
       grid.innerHTML = '';
+      if (pagination) pagination.hidden = true;
       renderCustomBouquetBuilder();
       return;
     }
     const categoryName = categoryLookup.get(cat) || '';
-    const list = cat === 'all' ? PRODUCTS : PRODUCTS.filter(p => categorySlug(p.category) === categorySlug(categoryName));
-    if (list.length) {
-      renderProducts(list, grid);
-    } else {
-      grid.innerHTML = `<div class="empty-cart"><p>No products in this category yet.</p></div>`;
-    }
+    currentProductList = cat === 'all' ? PRODUCTS : PRODUCTS.filter(p => categorySlug(p.category) === categorySlug(categoryName));
+    updatePagination();
   }
   render(activeCategory);
   if (window.location.hash === '#products' || (activeCategory !== 'all' && activeCategory !== 'custom-bouquet')) {
@@ -123,8 +159,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? '/shop#products'
       : `/shop?category=${encodeURIComponent(nextCategory)}#${nextCategory === 'custom-bouquet' ? 'custom-bouquet' : 'products'}`;
     window.history.replaceState({}, '', nextUrl);
-    render(e.target.dataset.cat);
+    render(e.target.dataset.cat, 1);
     document.getElementById(nextCategory === 'custom-bouquet' ? 'custom-bouquet' : 'products')?.scrollIntoView({ block: 'start' });
+  });
+
+  prevPage?.addEventListener('click', () => {
+    currentPage -= 1;
+    updatePagination();
+    document.getElementById('products')?.scrollIntoView({ block: 'start' });
+  });
+
+  nextPage?.addEventListener('click', () => {
+    currentPage += 1;
+    updatePagination();
+    document.getElementById('products')?.scrollIntoView({ block: 'start' });
   });
 });
 </script>

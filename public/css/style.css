@@ -360,6 +360,32 @@ body {
   color: #fff;
 }
 
+.shop-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.shop-pagination[hidden] {
+  display: none;
+}
+
+.shop-pagination .btn-outline {
+  min-width: 110px;
+  text-align: center;
+}
+
+.shop-pagination .btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--muted);
+}
+
 .hidden {
   display: none !important;
 }
@@ -1946,6 +1972,16 @@ body {
   }
   .nav-links { display: none; }
   .product-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .shop-pagination {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+  .shop-pagination span {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: center;
+  }
   .bouquet-option-grid {
     grid-template-columns: 1fr;
   }

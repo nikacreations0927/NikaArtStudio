@@ -38,6 +38,14 @@ pool.on('error', (err) => {
 const dataDir = path.join(__dirname, '..', 'data');
 const cloudinaryProductCsvPath = path.join(dataDir, 'keychain-cloudinary-products.csv');
 const nowSql = 'CURRENT_TIMESTAMP';
+const DEFAULT_CATEGORIES = [
+  'Crochet',
+  'Keychains',
+  'Flowers',
+  'Photo Magnets',
+  'Dream Catchers',
+  'Hair Accessories'
+];
 
 function withParams(sql, params = []) {
   let index = 0;
@@ -432,6 +440,18 @@ async function seedDatabase() {
     } catch (err) {
       console.error('Failed to seed Cloudinary products:', err);
     }
+  }
+
+  try {
+    for (const category of DEFAULT_CATEGORIES) {
+      await db.run(`
+        INSERT INTO categories (name, is_active)
+        VALUES (?, 1)
+        ON CONFLICT (name) DO UPDATE SET is_active = 1, updated_at = ${nowSql}
+      `, [category]);
+    }
+  } catch (err) {
+    console.error('Failed to seed default categories:', err);
   }
 
   const productCount = await db.get('SELECT COUNT(*)::int AS count FROM products');
