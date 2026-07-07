@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  // ── 1. Build the loader HTML and inject it immediately ──────────────────
+  // ── 1. Build the loader HTML ─────────────────────────────────────────────
   const LOADER_HTML = `
     <div id="nika-loader" role="status" aria-label="Loading Nika Arts Studio">
       <div class="loader-scene">
@@ -41,53 +41,55 @@
     </div>
   `;
 
-  // Inject before <body> content renders
-  document.addEventListener('DOMContentLoaded', () => {
-    document.body.insertAdjacentHTML('afterbegin', LOADER_HTML);
-  });
-
-  // Also try to inject synchronously if body is already available
-  if (document.body) {
+  // ── 2. Inject exactly once ───────────────────────────────────────────────
+  function injectLoader() {
+    // Guard: never inject twice
+    if (document.getElementById('nika-loader')) return;
     document.body.insertAdjacentHTML('afterbegin', LOADER_HTML);
   }
 
-  // ── 2. Hide the loader smoothly ──────────────────────────────────────────
+  if (document.body) {
+    // Script is in <body> — body exists, inject now
+    injectLoader();
+  } else {
+    // Script is in <head> — wait for body
+    document.addEventListener('DOMContentLoaded', injectLoader);
+  }
+
+  // ── 3. Dismiss the loader smoothly ──────────────────────────────────────
   let dismissed = false;
   function dismissLoader() {
     if (dismissed) return;
     dismissed = true;
-    const loader = document.getElementById('nika-loader');
-    if (!loader) return;
-    // Small extra delay so the logo swap is not jarring
-    setTimeout(() => {
+    // Remove ALL instances defensively (handles any edge-case duplicates)
+    document.querySelectorAll('#nika-loader').forEach(function (loader) {
       loader.classList.add('loader-hidden');
-      // Remove from DOM after transition ends (keeps DOM clean)
-      loader.addEventListener('transitionend', () => loader.remove(), { once: true });
-    }, 300);
+      loader.addEventListener('transitionend', function () { loader.remove(); }, { once: true });
+      // Fallback removal if transitionend never fires (e.g. CSS not loaded)
+      setTimeout(function () { if (loader.parentNode) loader.remove(); }, 1000);
+    });
   }
 
-  // ── 3. Swap the loader logo when the real logo URL is available ──────────
-  // Hook into applySiteAssets so the loader img shows the branded logo
+  // ── 4. Swap the loader logo when the real logo URL is available ──────────
   const _originalApply = window.applySiteAssets;
   window.applySiteAssets = function (content) {
-    const logoUrl = content?.assets?.logoImage;
+    const logoUrl = content && content.assets && content.assets.logoImage;
     if (logoUrl) {
       const loaderImg = document.getElementById('loader-logo-img');
-      if (loaderImg) {
-        loaderImg.src = logoUrl;
-      }
+      if (loaderImg) loaderImg.src = logoUrl;
     }
     if (typeof _originalApply === 'function') {
       _originalApply.call(this, content);
     }
   };
 
-  // ── 4. Trigger dismiss once the page + API content are done ──────────────
-  window.addEventListener('load', () => {
-    // Give API-driven pages a short grace window to populate content
+  // ── 5. Trigger dismiss once the page + API content are loaded ────────────
+  window.addEventListener('load', function () {
+    // Short grace window for API-driven pages to finish populating content
     setTimeout(dismissLoader, 600);
   });
 
-  // Safety net: always dismiss after 5 seconds (handles slow APIs / errors)
+  // Safety net: always dismiss after 5 s even on slow APIs / errors
   setTimeout(dismissLoader, 5000);
+
 })();
