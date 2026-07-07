@@ -533,21 +533,23 @@ body {
   gap: 0.65rem;
 }
 
+/* ── Preview card: simplified now that modal handles visualization ── */
 .bouquet-preview-card {
   display: grid;
-  grid-template-rows: minmax(430px, 1fr) auto;
+  grid-template-rows: minmax(380px, 1fr) auto;
   overflow: hidden;
 }
 
 .bouquet-preview {
   position: relative;
-  min-height: 430px;
-  display: grid;
-  place-items: center;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(250, 250, 245, 0.08), rgba(242, 240, 232, 0.2)),
-    var(--cream-2);
+  background: linear-gradient(165deg, #FDF9F0 0%, #F5EFE0 55%, #EDE5D4 100%);
+  gap: 1rem;
 }
 
 .bouquet-base-image {
@@ -556,68 +558,273 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.88;
+  opacity: 0.82;
   filter: saturate(1.05) contrast(0.98);
+  transition: opacity 0.4s ease;
 }
 
 .bouquet-preview-placeholder {
   position: relative;
   z-index: 1;
-  padding: 1rem;
+  padding: 1.25rem;
   color: var(--muted);
   text-align: center;
+  font-size: 0.92rem;
+  line-height: 1.55;
 }
 
-.bouquet-render {
+/* 'Preview ready' state shown after clicking Visualize */
+.bouquet-preview-ready {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.5rem;
+  text-align: center;
+  animation: previewReadyIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes previewReadyIn {
+  from { opacity: 0; transform: scale(0.88) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.bouquet-preview-ready .preview-icon {
+  font-size: 3rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(201, 162, 39, 0.4));
+}
+
+.bouquet-preview-ready p {
+  font-family: var(--font-head);
+  font-size: 1.15rem;
+  color: var(--charcoal);
+  margin: 0;
+}
+
+.bouquet-preview-ready small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* ── BOUQUET MODAL (Premium full-screen visualizer) ── */
+.bouquet-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.bouquet-modal.bm-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.bouquet-modal-backdrop {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  background: rgba(20, 14, 8, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
 }
 
-.bouquet-render::before {
-  content: "";
-  position: absolute;
-  inset: 0;
+.bouquet-modal-card {
+  position: relative;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.18));
-  pointer-events: none;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #FAFAF5;
+  border-radius: 20px;
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.4),
+    0 4px 20px rgba(0, 0, 0, 0.18);
+  transform: scale(0.9) translateY(24px);
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  scrollbar-width: thin;
 }
 
-.bouquet-photo-flower {
-  position: absolute;
-  left: var(--flower-left);
-  top: var(--flower-top);
-  z-index: calc(var(--flower-z) + 2);
-  width: 132px;
-  height: 315px;
-  transform: translate(-50%, -50%) rotate(var(--flower-angle)) scale(var(--flower-scale));
-  border-radius: 999px 999px 36px 36px;
+.bouquet-modal.bm-open .bouquet-modal-card {
+  transform: scale(1) translateY(0);
+}
+
+.bouquet-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bouquet-modal-header h3 {
+  font-family: var(--font-head);
+  font-size: 1.3rem;
+  color: var(--charcoal);
+  margin: 0;
+}
+
+.bouquet-modal-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--cream);
+  color: var(--charcoal);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.18s, color 0.18s, transform 0.25s;
+  line-height: 1;
+}
+
+.bouquet-modal-close:hover {
+  background: var(--charcoal);
+  color: var(--white);
+  transform: rotate(90deg);
+}
+
+/* SVG bouquet stage */
+.bouquet-stage {
+  position: relative;
+  width: 100%;
+  height: 420px;
   overflow: hidden;
-  background: transparent;
-  box-shadow: 0 12px 28px rgba(26, 46, 26, 0.14);
-  clip-path: polygon(16% 0, 84% 0, 66% 100%, 34% 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 7%, #000 82%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, #000 7%, #000 82%, transparent 100%);
+  background: linear-gradient(165deg, #FDF9F0 0%, #F2EBD8 50%, #E8DFC8 100%);
 }
 
-.bouquet-photo-flower::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--flower-tint);
-  opacity: 0.08;
-  mix-blend-mode: soft-light;
-  pointer-events: none;
-}
-
-.bouquet-photo-flower img {
+.bouquet-stage svg {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center top;
   display: block;
-  opacity: 0.92;
-  filter: saturate(1.08) contrast(0.98);
+}
+
+/* SVG element animations (applied via style attr in JS) */
+@keyframes flowerPop {
+  0%   { opacity: 0; transform: scale(0.3); }
+  65%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes stemGrow {
+  from { stroke-dashoffset: 350; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes wrapSlideUp {
+  from { opacity: 0; transform: translateY(50px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal footer */
+.bouquet-modal-footer {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.bouquet-flower-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+}
+
+.bouquet-flower-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  background: var(--cream);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--charcoal);
+  font-family: var(--font-body);
+}
+
+.bouquet-flower-chip-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  flex-shrink: 0;
+}
+
+.bouquet-modal-price-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.1rem;
+}
+
+.bouquet-modal-price-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-family: var(--font-body);
+}
+
+.bouquet-modal-price-amount {
+  font-family: var(--font-head);
+  font-size: 2.1rem;
+  color: var(--charcoal);
+  line-height: 1.1;
+  margin-top: 0.1rem;
+}
+
+.bouquet-modal-price-note {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  line-height: 1.45;
+}
+
+.bouquet-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.bouquet-modal-actions .btn-primary {
+  flex: 1;
+  min-width: 190px;
+  text-align: center;
+  justify-content: center;
+}
+
+/* Mobile: bottom sheet */
+@media (max-width: 600px) {
+  .bouquet-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .bouquet-modal-card {
+    max-height: 92vh;
+    border-radius: 20px 20px 0 0;
+    max-width: 100%;
+  }
+
+  .bouquet-stage {
+    height: 320px;
+  }
 }
 
 .bouquet-estimate {

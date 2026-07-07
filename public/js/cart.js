@@ -814,8 +814,15 @@ function renderCustomBouquetBuilder() {
 
     <div class="bouquet-preview-card">
       <div class="bouquet-preview" aria-live="polite">
-        ${baseImage ? `<img class="bouquet-base-image" src="${escapeHtml(baseImage)}" alt="Bouquet base reference">` : ''}
-        ${BOUQUET_BUILDER_STATE.visualized && selectedItems.length ? bouquetPreviewMarkup(selectedItems) : '<div class="bouquet-preview-placeholder">Pick flowers and colours, then visualize.</div>'}
+        ${baseImage ? `<img class="bouquet-base-image" src="${escapeHtml(baseImage)}" alt="Bouquet base reference"${BOUQUET_BUILDER_STATE.visualized && selectedItems.length ? ' style="opacity:0.35"' : ''}>` : ''}
+        ${BOUQUET_BUILDER_STATE.visualized && selectedItems.length
+          ? `<div class="bouquet-preview-ready">
+               <div class="preview-icon">🌸</div>
+               <p>Your bouquet preview is ready!</p>
+               <small>${selectedItems.length} flower stick${selectedItems.length !== 1 ? 's' : ''} · ${rupees(estimate)} est.</small>
+               <button type="button" class="btn-primary" onclick="openBouquetModal()" style="margin-top:0.25rem">View full preview →</button>
+             </div>`
+          : '<div class="bouquet-preview-placeholder">Pick flowers and colours, then visualize.</div>'}
       </div>
       <div class="bouquet-estimate">
         <span>Estimated bouquet cost</span>
@@ -844,28 +851,213 @@ function bouquetColorGroup(product) {
   `;
 }
 
-function bouquetPreviewMarkup(items) {
-  const positions = [
-    { left: 50, top: 43, scale: 1.02, angle: -2, z: 8 },
-    { left: 38, top: 46, scale: 0.94, angle: -10, z: 7 },
-    { left: 62, top: 46, scale: 0.94, angle: 9, z: 7 },
-    { left: 45, top: 50, scale: 0.88, angle: -5, z: 6 },
-    { left: 56, top: 50, scale: 0.88, angle: 6, z: 6 },
-    { left: 31, top: 52, scale: 0.78, angle: -14, z: 5 },
-    { left: 69, top: 52, scale: 0.78, angle: 13, z: 5 },
-    { left: 50, top: 55, scale: 0.78, angle: 0, z: 4 }
-  ];
+// ── BOUQUET MODAL ────────────────────────────────────────────────────────
 
-  return `
-    <div class="bouquet-render">
-      ${items.slice(0, 8).map((item, index) => {
-        const position = positions[index % positions.length];
-        return `<div class="bouquet-photo-flower" title="${escapeHtml(item.product.name)} - ${escapeHtml(item.color.name)}" style="--flower-left: ${position.left}%; --flower-top: ${position.top}%; --flower-scale: ${position.scale}; --flower-angle: ${position.angle}deg; --flower-z: ${position.z}; --flower-tint: ${escapeHtml(item.color.value)}">
-            <img src="${escapeHtml(item.product.image || '')}" alt="${escapeHtml(item.product.name)}">
-          </div>`;
-      }).join('')}
+function visualizeCustomBouquet() {
+  if (!selectedBouquetItems().length) {
+    showToast('Choose at least one flower stick to visualize.', true);
+    return;
+  }
+  BOUQUET_BUILDER_STATE.visualized = true;
+  renderCustomBouquetBuilder();
+  openBouquetModal();
+}
+
+function openBouquetModal() {
+  const items = selectedBouquetItems();
+  if (!items.length) return;
+  const estimate = bouquetEstimate(items);
+
+  let modal = document.getElementById('bouquet-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'bouquet-modal';
+    modal.className = 'bouquet-modal';
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div class="bouquet-modal-backdrop" onclick="closeBouquetModal()"></div>
+    <div class="bouquet-modal-card">
+      <div class="bouquet-modal-header">
+        <h3>Your Bouquet Preview</h3>
+        <button class="bouquet-modal-close" onclick="closeBouquetModal()" aria-label="Close preview">&times;</button>
+      </div>
+      <div class="bouquet-stage">
+        ${buildBouquetStageSVG(items)}
+      </div>
+      <div class="bouquet-modal-footer">
+        <div class="bouquet-flower-chips">
+          ${items.map(item => `
+            <div class="bouquet-flower-chip">
+              <span class="bouquet-flower-chip-dot" style="background:${escapeHtml(item.color.value)}"></span>
+              ${escapeHtml(item.product.name.replace(/ sticks?/i, ''))} &middot; ${escapeHtml(item.color.name)}
+            </div>
+          `).join('')}
+        </div>
+        <div class="bouquet-modal-price-row">
+          <div>
+            <div class="bouquet-modal-price-label">Estimated total</div>
+            <div class="bouquet-modal-price-amount">${rupees(estimate)}</div>
+            <div class="bouquet-modal-price-note">${items.length} flower stick${items.length !== 1 ? 's' : ''} &middot; Final price confirmed by studio.</div>
+          </div>
+        </div>
+        <div class="bouquet-modal-actions">
+          <button class="btn-primary" onclick="enquireBouquet()">Request this bouquet</button>
+          <button class="btn-outline" onclick="closeBouquetModal()">Edit selection</button>
+        </div>
+      </div>
     </div>
   `;
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      modal.classList.add('bm-open');
+      document.body.style.overflow = 'hidden';
+    });
+  });
+
+  // Close on Escape key
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { closeBouquetModal(); document.removeEventListener('keydown', onKeyDown); }
+  }
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function closeBouquetModal() {
+  const modal = document.getElementById('bouquet-modal');
+  if (!modal) return;
+  modal.classList.remove('bm-open');
+  document.body.style.overflow = '';
+  setTimeout(() => { if (modal.parentNode) modal.remove(); }, 420);
+}
+
+function enquireBouquet() {
+  const items = selectedBouquetItems();
+  const estimate = bouquetEstimate(items);
+  const flowerList = items.map(i => `- ${i.product.name} (${i.color.name})`).join('\n');
+  const subject = encodeURIComponent('Custom Bouquet Request — Nika Arts Studio');
+  const body = encodeURIComponent(
+    `Hi Nika Arts Studio,\n\nI'd love to order a custom bouquet with:\n${flowerList}\n\nEstimated cost: ${rupees(estimate)}\n\nCould you confirm availability and final pricing?\n\nThank you!`
+  );
+  const email = (typeof SITE_CONTENT !== 'undefined' && SITE_CONTENT?.contact?.email) || '';
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  closeBouquetModal();
+}
+
+function buildBouquetStageSVG(items) {
+  const W = 560;
+  const H = 440;  // taller viewbox for more flower room
+  const N = Math.min(items.length, 8);
+
+  // Wrap geometry — kept compact at bottom
+  const wrapCX    = W / 2;
+  const wrapBotY  = H + 10;   // slightly below stage bottom (hidden)
+  const wrapHeight = 160;
+  const wrapTopY  = wrapBotY - wrapHeight;
+  const wrapBotHW = 75;    // half-width at bottom
+  const wrapTopHW = 50;    // half-width at wrap opening
+
+  // Stem origin: from inside wrap opening
+  const stemOX = wrapCX;
+  const stemOY = wrapTopY + 8;
+
+  // Spread angle (degrees total across all flowers) — wider for more bouquet feel
+  const totalSpread = N <= 1 ? 0 : Math.min(90, 22 + N * 10);
+
+  // Compute flower geometry
+  const flowers = items.slice(0, 8).map((item, i) => {
+    const t = N === 1 ? 0 : (i / (N - 1) - 0.5);   // -0.5 to +0.5
+    const angleDeg = t * totalSpread;
+    const angleRad = angleDeg * Math.PI / 180;
+    const centrality = 1 - Math.abs(t) * 0.4;       // 1 = center, ~0.8 = edge
+    const stemLen    = Math.round(230 * centrality);  // longer stems = flowers near top
+    const r          = Math.round(62 * centrality + 40 * (1 - centrality)); // 62 center, 40 edge
+    const cx = stemOX + Math.sin(angleRad) * stemLen;
+    const cy = stemOY - Math.cos(angleRad) * stemLen;
+    return { item, t, angleDeg, angleRad, stemLen, r, cx, cy, centrality, i };
+  });
+
+  // Z-order: center on top
+  const byZ = [...flowers].sort((a, b) => a.centrality - b.centrality);
+
+  // SVG defs
+  const defs = `<defs>
+    <linearGradient id="bmWrapGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#F7E8D2"/>
+      <stop offset="55%"  stop-color="#EDCFAD"/>
+      <stop offset="100%" stop-color="#E4C49B"/>
+    </linearGradient>
+    <linearGradient id="bmWrapSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.45)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.07)"/>
+    </linearGradient>
+    <filter id="bmPetalShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="rgba(20,12,4,0.25)"/>
+    </filter>
+    <filter id="bmWrapShadow" x="-15%" y="-5%" width="130%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="rgba(20,12,4,0.2)"/>
+    </filter>
+    ${flowers.map(f => `<clipPath id="bmClip${f.i}"><circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${f.r}"/></clipPath>`).join('')}
+  </defs>`;
+
+  // Stems
+  const stems = flowers.map(f => {
+    const ex = (f.cx + stemOX * 0.15) / 1.15;  // slight inward curve at top
+    const ey = (f.cy + stemOY * 0.15) / 1.15;
+    return `<path d="M${stemOX.toFixed(1)},${stemOY} Q${ex.toFixed(1)},${((stemOY + f.cy)/2).toFixed(1)} ${f.cx.toFixed(1)},${f.cy.toFixed(1)}"
+      fill="none" stroke="#4A6741" stroke-width="2.8" stroke-linecap="round" opacity="0.82"
+      style="animation:stemGrow 0.55s ${(0.08 + f.i * 0.07).toFixed(2)}s ease both; stroke-dasharray:350; stroke-dashoffset:350"/>`;
+  }).join('');
+
+  // Flowers (sorted by z-order)
+  const flowersSVG = byZ.map(f => {
+    const delay = (0.32 + f.i * 0.09).toFixed(2);
+    const txfOrigin = `transform-origin: ${f.cx.toFixed(1)}px ${f.cy.toFixed(1)}px`;
+    const hasImg = f.item.product.image;
+    return `<g style="animation:flowerPop 0.55s ${delay}s cubic-bezier(0.34,1.56,0.64,1) both; ${txfOrigin}" filter="url(#bmPetalShadow)">
+      ${hasImg ? `<image href="${escapeHtml(f.item.product.image)}"
+        x="${(f.cx - f.r).toFixed(1)}" y="${(f.cy - f.r).toFixed(1)}"
+        width="${f.r * 2}" height="${f.r * 2}"
+        clip-path="url(#bmClip${f.i})"
+        preserveAspectRatio="xMidYMid slice"
+        style="filter:saturate(1.15) contrast(1.05)"/>` : ''}
+      <circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${f.r}"
+        fill="${escapeHtml(f.item.color.value)}" opacity="${hasImg ? '0.42' : '0.9'}"
+        ${hasImg ? 'style="mix-blend-mode:multiply"' : ''}/>
+      <circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${f.r}"
+        fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
+      <circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${Math.round(f.r*0.2)}"
+        fill="rgba(255,255,255,0.72)"/>
+    </g>`;
+  }).join('');
+
+  // Wrap shape
+  const wTL = `${(wrapCX - wrapTopHW).toFixed(1)},${wrapTopY}`;
+  const wTR = `${(wrapCX + wrapTopHW).toFixed(1)},${wrapTopY}`;
+  const wBR = `${(wrapCX + wrapBotHW).toFixed(1)},${wrapBotY}`;
+  const wBL = `${(wrapCX - wrapBotHW).toFixed(1)},${wrapBotY}`;
+  const wrap = `<g style="animation:wrapSlideUp 0.45s 0.05s ease both" filter="url(#bmWrapShadow)">
+    <polygon points="${wTL} ${wTR} ${wBR} ${wBL}" fill="url(#bmWrapGrad)"/>
+    <polygon points="${wTL} ${wTR} ${wBR} ${wBL}" fill="url(#bmWrapSheen)" opacity="0.55"/>
+    <line x1="${wrapCX}" y1="${wrapTopY}" x2="${wrapCX}" y2="${wrapBotY}" stroke="#C9A227" stroke-width="1.8" opacity="0.55"/>
+    ${buildRibbonBow(wrapCX, wrapTopY + 6)}
+  </g>`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    ${defs}${stems}${flowersSVG}${wrap}
+  </svg>`;
+}
+
+function buildRibbonBow(cx, cy) {
+  const r = 20;
+  return `<g>
+    <path d="M${cx},${cy} C${cx-r*1.6},${cy-r*1.3} ${cx-r*2.2},${cy+r*0.4} ${cx},${cy+r*0.25}" fill="#C9A227" opacity="0.88"/>
+    <path d="M${cx},${cy} C${cx+r*1.6},${cy-r*1.3} ${cx+r*2.2},${cy+r*0.4} ${cx},${cy+r*0.25}" fill="#A8851E" opacity="0.88"/>
+    <ellipse cx="${cx}" cy="${cy+r*0.12}" rx="${r*0.38}" ry="${r*0.28}" fill="#C9A227"/>
+    <line x1="${(cx-r*0.35).toFixed(1)}" y1="${(cy+r*0.25).toFixed(1)}" x2="${(cx-r*0.9).toFixed(1)}" y2="${(cy+r*1.3).toFixed(1)}" stroke="#C9A227" stroke-width="3.5" stroke-linecap="round" opacity="0.82"/>
+    <line x1="${(cx+r*0.35).toFixed(1)}" y1="${(cy+r*0.25).toFixed(1)}" x2="${(cx+r*0.9).toFixed(1)}" y2="${(cy+r*1.3).toFixed(1)}" stroke="#A8851E" stroke-width="3.5" stroke-linecap="round" opacity="0.82"/>
+  </g>`;
 }
 
 function toggleBouquetFlower(productId) {
@@ -890,14 +1082,8 @@ function toggleBouquetColor(productId, colorName) {
   renderCustomBouquetBuilder();
 }
 
-function visualizeCustomBouquet() {
-  if (!selectedBouquetItems().length) {
-    showToast('Choose at least one flower stick to visualize.', true);
-    return;
-  }
-  BOUQUET_BUILDER_STATE.visualized = true;
-  renderCustomBouquetBuilder();
-}
+
+
 
 function resetCustomBouquet() {
   BOUQUET_BUILDER_STATE.selected.clear();
