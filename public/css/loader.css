@@ -1,0 +1,198 @@
+/* =====================================================
+   NIKA ARTS STUDIO — PAGE LOADER
+   Brand palette: cream #FAFAF5, gold #C9A227, forest #1A2E1A, sage #6B7A5E
+   ===================================================== */
+
+/* ---- Overlay ---- */
+#nika-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #FAFAF5;
+  background-image: radial-gradient(ellipse at 50% 45%, #F2F0E8 0%, #FAFAF5 70%);
+  transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#nika-loader.loader-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---- Scene wrapper (perspective) ---- */
+.loader-scene {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  perspective: 600px;
+}
+
+/* ---- Logo (3-D flip spin) ---- */
+.loader-logo-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: logo3dSpin 3.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.loader-logo-wrap img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  border-radius: 50%;
+  filter: drop-shadow(0 0 18px rgba(201, 162, 39, 0.45))
+          drop-shadow(0 4px 12px rgba(26, 46, 26, 0.18));
+  backface-visibility: hidden;
+}
+
+@keyframes logo3dSpin {
+  0%   { transform: rotateY(0deg)   scale(1);    }
+  25%  { transform: rotateY(90deg)  scale(0.92); }
+  50%  { transform: rotateY(180deg) scale(1);    }
+  75%  { transform: rotateY(270deg) scale(0.92); }
+  100% { transform: rotateY(360deg) scale(1);    }
+}
+
+/* ---- Orbit ring ---- */
+.loader-orbit {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #C9A227;
+  border-right-color: rgba(201, 162, 39, 0.35);
+  animation: orbitSpin 2s linear infinite;
+  will-change: transform;
+}
+
+.loader-orbit::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  background: #C9A227;
+  border-radius: 50%;
+  box-shadow: 0 0 10px 3px rgba(201, 162, 39, 0.6);
+}
+
+@keyframes orbitSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ---- Inner glow pulse ---- */
+.loader-glow {
+  position: absolute;
+  inset: 15px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 162, 39, 0.12) 0%, transparent 70%);
+  animation: glowPulse 2.4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes glowPulse {
+  from { opacity: 0.4; transform: scale(0.9); }
+  to   { opacity: 1;   transform: scale(1.15); }
+}
+
+/* ---- Floating petal particles ---- */
+.loader-particles {
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+}
+
+.loader-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50% 50% 50% 0;
+  opacity: 0;
+  animation: floatParticle var(--dur, 3s) var(--delay, 0s) ease-in-out infinite;
+}
+
+/* Gold petals */
+.loader-particle:nth-child(1)  { background:#C9A227; top:10%;  left:50%; --dur:3.1s; --delay:0s;   }
+.loader-particle:nth-child(2)  { background:#A8851E; top:20%;  left:80%; --dur:2.8s; --delay:0.4s; transform:rotate(45deg);  }
+.loader-particle:nth-child(3)  { background:#C9A227; top:70%;  left:85%; --dur:3.4s; --delay:0.8s; }
+.loader-particle:nth-child(4)  { background:#DDB94A; top:80%;  left:50%; --dur:2.6s; --delay:1.2s; transform:rotate(135deg); }
+.loader-particle:nth-child(5)  { background:#A8851E; top:70%;  left:15%; --dur:3.2s; --delay:0.2s; }
+.loader-particle:nth-child(6)  { background:#C9A227; top:20%;  left:20%; --dur:2.9s; --delay:0.6s; transform:rotate(90deg);  }
+/* Sage/green petals */
+.loader-particle:nth-child(7)  { background:#6B7A5E; top:5%;  left:35%;  --dur:3.0s; --delay:1.0s; width:5px; height:8px; border-radius:50% 0; }
+.loader-particle:nth-child(8)  { background:#4A5E44; top:90%; left:65%;  --dur:3.3s; --delay:0.3s; width:5px; height:8px; }
+.loader-particle:nth-child(9)  { background:#6B7A5E; top:45%; left:5%;   --dur:2.7s; --delay:0.9s; width:4px; height:7px; }
+.loader-particle:nth-child(10) { background:#4A5E44; top:50%; left:95%;  --dur:3.1s; --delay:0.5s; width:4px; height:7px; }
+
+@keyframes floatParticle {
+  0%   { opacity: 0;   transform: translateY(0px)   scale(0.6) rotate(0deg);   }
+  20%  { opacity: 0.8; }
+  60%  { opacity: 0.9; transform: translateY(-20px)  scale(1)   rotate(180deg); }
+  100% { opacity: 0;   transform: translateY(-40px)  scale(0.6) rotate(360deg); }
+}
+
+/* ---- Text below ---- */
+.loader-text {
+  margin-top: 36px;
+  text-align: center;
+  animation: textPulse 2s ease-in-out infinite alternate;
+}
+
+.loader-brand {
+  display: block;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1A2E1A;
+  letter-spacing: 0.06em;
+}
+
+.loader-tagline {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #6B7A5E;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-top: 4px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* Gold shimmer bar */
+.loader-bar {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #C9A227, transparent);
+  background-size: 200% 100%;
+  margin: 10px auto 0;
+  animation: shimmerBar 1.8s linear infinite;
+}
+
+@keyframes shimmerBar {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes textPulse {
+  from { opacity: 0.7; }
+  to   { opacity: 1;   }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 480px) {
+  .loader-scene { width: 160px; height: 160px; }
+  .loader-logo-wrap img { width: 95px; height: 95px; }
+  .loader-brand { font-size: 1.2rem; }
+}
