@@ -712,21 +712,167 @@ body {
   display: block;
 }
 
-/* SVG element animations (applied via style attr in JS) */
-@keyframes flowerPop {
-  0%   { opacity: 0; transform: scale(0.3); }
-  65%  { opacity: 1; transform: scale(1.12); }
-  100% { opacity: 1; transform: scale(1); }
+/* ── Bouquet stage: real photo composition ────────────────────────────── */
+
+/* Full-bleed container inside .bouquet-stage */
+.bq-composition {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(165deg, #FDF9F0 0%, #F3EBD9 55%, #EAE0CB 100%);
 }
 
-@keyframes stemGrow {
-  from { stroke-dashoffset: 350; }
-  to   { stroke-dashoffset: 0; }
+/*
+  Anchor point — all flower sticks fan out from this single origin.
+  Positioned 115px from the bottom so sticks rise above the wrap.
+  transform-origin: bottom center on .bq-stick-wrap makes them all
+  pivot from the same point, exactly like a hand-held bouquet.
+*/
+.bq-flowers-anchor {
+  position: absolute;
+  bottom: 128px;
+  left: 50%;
+  width: 0;
+  height: 0;
 }
 
-@keyframes wrapSlideUp {
-  from { opacity: 0; transform: translateY(50px); }
-  to   { opacity: 1; transform: translateY(0); }
+.bq-stick-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 92px;
+  transform: translateX(-50%) rotate(var(--bq-angle, 0deg));
+  transform-origin: bottom center;
+}
+
+/*
+  The inner element is what gets animated (scale/fadeIn).
+  Gradient mask: fully opaque at flower head, fades at the
+  stem bottom so it blends seamlessly into the paper wrap.
+*/
+.bq-stick-inner {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 3px 3px 0 0;
+  animation: bqStickIn 0.6s ease both;
+  transform-origin: bottom center;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 55%,
+    rgba(0, 0, 0, 0.65) 76%,
+    transparent 98%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 55%,
+    rgba(0, 0, 0, 0.65) 76%,
+    transparent 98%
+  );
+  filter: drop-shadow(0 8px 20px rgba(20, 12, 4, 0.16));
+}
+
+.bq-stick-inner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+  filter: saturate(1.08) contrast(0.96);
+}
+
+/* Colour swatch fallback when no product image */
+.bq-color-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 40% 40% 6px 6px;
+}
+
+@keyframes bqStickIn {
+  0%   { opacity: 0; transform: scale(0.68) translateY(28px); }
+  65%  { opacity: 1; transform: scale(1.03) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Paper wrap cone ── */
+.bq-paper-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 128px;
+  height: 142px;
+  z-index: 15;
+  animation: bqWrapIn 0.42s 0.04s ease both;
+}
+
+@keyframes bqWrapIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(22px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Trapezoid: narrow at top (stem opening), wide at bottom */
+.bq-paper-body {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    148deg,
+    #FAF0E0 0%,
+    #F0D9BC 32%,
+    #E6C9A4 60%,
+    #F4E2C8 100%
+  );
+  clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+  box-shadow:
+    4px 8px 28px rgba(20, 12, 4, 0.22),
+    inset 4px 0 12px rgba(255, 255, 255, 0.3),
+    inset -4px 0 10px rgba(0, 0, 0, 0.06);
+}
+
+/* Subtle vertical stripe texture (like kraft paper) */
+.bq-paper-body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 22px,
+    rgba(255, 255, 255, 0.1) 22px,
+    rgba(255, 255, 255, 0.1) 23px
+  );
+  clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+  pointer-events: none;
+}
+
+/* Gold ribbon band at top of wrap */
+.bq-paper-ribbon {
+  position: absolute;
+  top: 2px;
+  left: 13%;
+  right: 13%;
+  height: 9px;
+  background: linear-gradient(
+    90deg,
+    #A8851E 0%,
+    #C9A227 28%,
+    #D4AF37 50%,
+    #C9A227 72%,
+    #A8851E 100%
+  );
+  box-shadow: 0 1px 5px rgba(168, 133, 30, 0.45);
+}
+
+/* SVG bow sits above the ribbon */
+.bq-paper-bow {
+  position: absolute;
+  top: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* Modal footer */

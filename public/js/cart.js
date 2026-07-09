@@ -884,7 +884,7 @@ function openBouquetModal() {
         <button class="bouquet-modal-close" onclick="closeBouquetModal()" aria-label="Close preview">&times;</button>
       </div>
       <div class="bouquet-stage">
-        ${buildBouquetStageSVG(items)}
+        ${buildBouquetStageHTML(items)}
       </div>
       <div class="bouquet-modal-footer">
         <div class="bouquet-flower-chips">
@@ -945,120 +945,53 @@ function enquireBouquet() {
   closeBouquetModal();
 }
 
-function buildBouquetStageSVG(items) {
-  const W = 560;
-  const H = 440;  // taller viewbox for more flower room
+function buildBouquetStageHTML(items) {
   const N = Math.min(items.length, 8);
+  // Total fan spread in degrees — grows with more flowers, capped at 76°
+  const totalSpread = N <= 1 ? 0 : Math.min(76, 14 + N * 9);
 
-  // Wrap geometry — kept compact at bottom
-  const wrapCX    = W / 2;
-  const wrapBotY  = H + 10;   // slightly below stage bottom (hidden)
-  const wrapHeight = 160;
-  const wrapTopY  = wrapBotY - wrapHeight;
-  const wrapBotHW = 75;    // half-width at bottom
-  const wrapTopHW = 50;    // half-width at wrap opening
-
-  // Stem origin: from inside wrap opening
-  const stemOX = wrapCX;
-  const stemOY = wrapTopY + 8;
-
-  // Spread angle (degrees total across all flowers) — wider for more bouquet feel
-  const totalSpread = N <= 1 ? 0 : Math.min(90, 22 + N * 10);
-
-  // Compute flower geometry
-  const flowers = items.slice(0, 8).map((item, i) => {
-    const t = N === 1 ? 0 : (i / (N - 1) - 0.5);   // -0.5 to +0.5
-    const angleDeg = t * totalSpread;
-    const angleRad = angleDeg * Math.PI / 180;
-    const centrality = 1 - Math.abs(t) * 0.4;       // 1 = center, ~0.8 = edge
-    const stemLen    = Math.round(230 * centrality);  // longer stems = flowers near top
-    const r          = Math.round(62 * centrality + 40 * (1 - centrality)); // 62 center, 40 edge
-    const cx = stemOX + Math.sin(angleRad) * stemLen;
-    const cy = stemOY - Math.cos(angleRad) * stemLen;
-    return { item, t, angleDeg, angleRad, stemLen, r, cx, cy, centrality, i };
+  const flowers = items.slice(0, N).map((item, i) => {
+    const t = N === 1 ? 0 : (i / (N - 1) - 0.5);  // −0.5 … +0.5
+    const angle  = t * totalSpread;                 // rotation in deg
+    const height = Math.round(300 - Math.abs(t) * 110); // 300 center → ~245 edge
+    const z      = Math.round(10 * (1 - Math.abs(t)));  // 10 center, 5 edge
+    // Stagger: centre flower pops in first, edges last
+    const delay  = (Math.abs(t) * 0.45).toFixed(2);
+    return { item, angle, height, z, delay };
   });
 
-  // Z-order: center on top
-  const byZ = [...flowers].sort((a, b) => a.centrality - b.centrality);
+  // Render back-to-front so center overlaps edges
+  const byZ = [...flowers].sort((a, b) => a.z - b.z);
 
-  // SVG defs
-  const defs = `<defs>
-    <linearGradient id="bmWrapGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"   stop-color="#F7E8D2"/>
-      <stop offset="55%"  stop-color="#EDCFAD"/>
-      <stop offset="100%" stop-color="#E4C49B"/>
-    </linearGradient>
-    <linearGradient id="bmWrapSheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="rgba(255,255,255,0.45)"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.07)"/>
-    </linearGradient>
-    <filter id="bmPetalShadow" x="-25%" y="-25%" width="150%" height="150%">
-      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="rgba(20,12,4,0.25)"/>
-    </filter>
-    <filter id="bmWrapShadow" x="-15%" y="-5%" width="130%" height="120%">
-      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="rgba(20,12,4,0.2)"/>
-    </filter>
-    ${flowers.map(f => `<clipPath id="bmClip${f.i}"><circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${f.r}"/></clipPath>`).join('')}
-  </defs>`;
-
-  // Stems
-  const stems = flowers.map(f => {
-    const ex = (f.cx + stemOX * 0.15) / 1.15;  // slight inward curve at top
-    const ey = (f.cy + stemOY * 0.15) / 1.15;
-    return `<path d="M${stemOX.toFixed(1)},${stemOY} Q${ex.toFixed(1)},${((stemOY + f.cy)/2).toFixed(1)} ${f.cx.toFixed(1)},${f.cy.toFixed(1)}"
-      fill="none" stroke="#4A6741" stroke-width="2.8" stroke-linecap="round" opacity="0.82"
-      style="animation:stemGrow 0.55s ${(0.08 + f.i * 0.07).toFixed(2)}s ease both; stroke-dasharray:350; stroke-dashoffset:350"/>`;
+  const sticks = byZ.map(f => {
+    const imgHTML = f.item.product.image
+      ? `<img src="${escapeHtml(f.item.product.image)}" alt="${escapeHtml(f.item.product.name)}" loading="lazy">`
+      : `<div class="bq-color-fallback" style="background:${escapeHtml(f.item.color.value)};"></div>`;
+    return `<div class="bq-stick-wrap" style="--bq-angle:${f.angle.toFixed(1)}deg; z-index:${f.z};">
+      <div class="bq-stick-inner" style="height:${f.height}px; animation-delay:${f.delay}s;">${imgHTML}</div>
+    </div>`;
   }).join('');
 
-  // Flowers (sorted by z-order)
-  const flowersSVG = byZ.map(f => {
-    const delay = (0.32 + f.i * 0.09).toFixed(2);
-    const txfOrigin = `transform-origin: ${f.cx.toFixed(1)}px ${f.cy.toFixed(1)}px`;
-    const hasImg = f.item.product.image;
-    return `<g style="animation:flowerPop 0.55s ${delay}s cubic-bezier(0.34,1.56,0.64,1) both; ${txfOrigin}" filter="url(#bmPetalShadow)">
-      ${hasImg ? `<image href="${escapeHtml(f.item.product.image)}"
-        x="${(f.cx - f.r).toFixed(1)}" y="${(f.cy - f.r).toFixed(1)}"
-        width="${f.r * 2}" height="${f.r * 2}"
-        clip-path="url(#bmClip${f.i})"
-        preserveAspectRatio="xMidYMid slice"
-        style="filter:saturate(1.15) contrast(1.05)"/>` : ''}
-      <circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${f.r}"
-        fill="${escapeHtml(f.item.color.value)}" opacity="${hasImg ? '0.42' : '0.9'}"
-        ${hasImg ? 'style="mix-blend-mode:multiply"' : ''}/>
-      <circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${f.r}"
-        fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>
-      <circle cx="${f.cx.toFixed(1)}" cy="${f.cy.toFixed(1)}" r="${Math.round(f.r*0.2)}"
-        fill="rgba(255,255,255,0.72)"/>
-    </g>`;
-  }).join('');
-
-  // Wrap shape
-  const wTL = `${(wrapCX - wrapTopHW).toFixed(1)},${wrapTopY}`;
-  const wTR = `${(wrapCX + wrapTopHW).toFixed(1)},${wrapTopY}`;
-  const wBR = `${(wrapCX + wrapBotHW).toFixed(1)},${wrapBotY}`;
-  const wBL = `${(wrapCX - wrapBotHW).toFixed(1)},${wrapBotY}`;
-  const wrap = `<g style="animation:wrapSlideUp 0.45s 0.05s ease both" filter="url(#bmWrapShadow)">
-    <polygon points="${wTL} ${wTR} ${wBR} ${wBL}" fill="url(#bmWrapGrad)"/>
-    <polygon points="${wTL} ${wTR} ${wBR} ${wBL}" fill="url(#bmWrapSheen)" opacity="0.55"/>
-    <line x1="${wrapCX}" y1="${wrapTopY}" x2="${wrapCX}" y2="${wrapBotY}" stroke="#C9A227" stroke-width="1.8" opacity="0.55"/>
-    ${buildRibbonBow(wrapCX, wrapTopY + 6)}
-  </g>`;
-
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-    ${defs}${stems}${flowersSVG}${wrap}
+  // Realistic bow SVG
+  const bowSVG = `<svg width="72" height="38" viewBox="0 0 72 38" xmlns="http://www.w3.org/2000/svg">
+    <path d="M36,19 C30,9 12,6 15,17 C17,23 28,21 36,19Z" fill="#C9A227" opacity="0.93"/>
+    <path d="M36,19 C42,9 60,6 57,17 C55,23 44,21 36,19Z" fill="#A8851E" opacity="0.93"/>
+    <ellipse cx="36" cy="19" rx="5" ry="4.2" fill="#C9A227"/>
+    <path d="M33,22 C30,28 26,33 22,38" stroke="#C9A227" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M39,22 C42,28 46,33 50,38" stroke="#A8851E" stroke-width="2.5" fill="none" stroke-linecap="round"/>
   </svg>`;
+
+  return `
+    <div class="bq-composition">
+      <div class="bq-flowers-anchor">${sticks}</div>
+      <div class="bq-paper-wrap">
+        <div class="bq-paper-body"></div>
+        <div class="bq-paper-ribbon"></div>
+        <div class="bq-paper-bow">${bowSVG}</div>
+      </div>
+    </div>`;
 }
 
-function buildRibbonBow(cx, cy) {
-  const r = 20;
-  return `<g>
-    <path d="M${cx},${cy} C${cx-r*1.6},${cy-r*1.3} ${cx-r*2.2},${cy+r*0.4} ${cx},${cy+r*0.25}" fill="#C9A227" opacity="0.88"/>
-    <path d="M${cx},${cy} C${cx+r*1.6},${cy-r*1.3} ${cx+r*2.2},${cy+r*0.4} ${cx},${cy+r*0.25}" fill="#A8851E" opacity="0.88"/>
-    <ellipse cx="${cx}" cy="${cy+r*0.12}" rx="${r*0.38}" ry="${r*0.28}" fill="#C9A227"/>
-    <line x1="${(cx-r*0.35).toFixed(1)}" y1="${(cy+r*0.25).toFixed(1)}" x2="${(cx-r*0.9).toFixed(1)}" y2="${(cy+r*1.3).toFixed(1)}" stroke="#C9A227" stroke-width="3.5" stroke-linecap="round" opacity="0.82"/>
-    <line x1="${(cx+r*0.35).toFixed(1)}" y1="${(cy+r*0.25).toFixed(1)}" x2="${(cx+r*0.9).toFixed(1)}" y2="${(cy+r*1.3).toFixed(1)}" stroke="#A8851E" stroke-width="3.5" stroke-linecap="round" opacity="0.82"/>
-  </g>`;
-}
 
 function toggleBouquetFlower(productId) {
   if (BOUQUET_BUILDER_STATE.selected.has(productId)) {
