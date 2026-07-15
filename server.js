@@ -16,6 +16,7 @@ const configRoutes = require('./routes/config');
 const { ready: dbReady, pool } = require('./db');
 
 const errorHandler = require('./middleware/errorHandler');
+const { isAuthorized } = require('./middleware/adminAuth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,7 +53,20 @@ function requireProductionEnv() {
 requireProductionEnv();
 
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'"],          // inline scripts in HTML (tighten with nonce in v2)
+      styleSrc:   ["'self'", "'unsafe-inline'", "fonts.googleapis.com"],
+      fontSrc:    ["'self'", "fonts.gstatic.com", "data:"],
+      imgSrc:     ["'self'", "data:", "blob:", "res.cloudinary.com"],
+      connectSrc: ["'self'"],
+      frameSrc:   ["'none'"],
+      objectSrc:  ["'none'"],
+      baseUri:    ["'self'"],
+      formAction: ["'self'"]
+    }
+  },
   crossOriginEmbedderPolicy: false
 }));
 app.use(cors({
@@ -69,8 +83,11 @@ app.use('/api/auth/forgot-password', rateLimit({ windowMs: 60 * 60 * 1000, limit
 app.use('/api/auth/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/payment/initiate', rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/shiprocket/serviceability', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false }));
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+// Larger limit only for admin product-image upload endpoints; strict limit everywhere else
+app.use('/api/products', express.json({ limit: '10mb' }));
+app.use('/api/products', express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '500kb' }));
+app.use(express.urlencoded({ extended: true, limit: '500kb' }));
 
 const pageRoutes = {
   '/': 'index.html',
@@ -82,13 +99,21 @@ const pageRoutes = {
   '/track-order': 'track.html',
   '/trackOrder': 'track.html',
   '/account': 'account.html',
-  '/admin': 'admin.html',
-  '/admin/orders': 'admin-orders.html',
-  '/admin/confirm-payment': 'admin-confirm-payment.html',
+  '/admin': 'admin.html',         // login page — stays public
   '/privacy': 'privacy.html',
   '/shipping': 'shipping.html',
   '/returns': 'returns.html'
 };
+
+// Protected admin sub-pages: redirect unauthenticated visitors to /admin (login)
+async function requireAdminPage(req, res, next) {
+  try {
+    if (await isAuthorized(req)) return next();
+    return res.redirect('/admin?authRequired=1');
+  } catch (err) {
+    return next(err);
+  }
+}
 
 const legacyHtmlRedirects = {
   '/index.html': '/',
@@ -119,6 +144,10 @@ Object.entries(pageRoutes).forEach(([routePath, fileName]) => {
     res.sendFile(path.join(__dirname, 'public', fileName));
   });
 });
+
+// Admin sub-pages — require a valid admin session (redirects to login otherwise)
+app.get('/admin/orders',          requireAdminPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-orders.html')));
+app.get('/admin/confirm-payment', requireAdminPage, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-confirm-payment.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

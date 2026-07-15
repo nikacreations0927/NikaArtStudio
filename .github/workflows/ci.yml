@@ -1,0 +1,54 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-syntax:
+    name: Syntax & Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '>=24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for syntax errors (server entrypoint)
+        run: node --check server.js
+
+      - name: Check for syntax errors (all JS files)
+        run: |
+          find . -name "*.js" \
+            -not -path "./node_modules/*" \
+            -not -path "./.git/*" \
+            -not -name "*.min.js" \
+            | xargs -I{} node --check {}
+
+      - name: Verify .env.example documents all required keys
+        run: |
+          REQUIRED_KEYS=(DATABASE_URL NODE_ENV PORT BASE_URL ADMIN_USERNAME ADMIN_PASSWORD)
+          for key in "${REQUIRED_KEYS[@]}"; do
+            if ! grep -q "^${key}=" .env.example; then
+              echo "ERROR: ${key} is missing from .env.example"
+              exit 1
+            fi
+          done
+          echo "All required environment variable keys are documented."
+
+      - name: Ping health endpoint (smoke test — only on push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          sleep 10
+          curl -sf --max-time 30 https://nikaartscreations.com/api/health || echo "Health check failed (non-blocking)"
+        continue-on-error: true

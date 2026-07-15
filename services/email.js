@@ -201,6 +201,27 @@ function brandedEmail({ title, preheader, children, cta }) {
   `;
 }
 
+/**
+ * Retry helper — attempts fn() up to (1 + retries) times with exponential backoff.
+ * Suitable for transient email provider failures (network blips, rate limits).
+ */
+async function withEmailRetry(fn, { retries = 2, baseDelayMs = 1000 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        const waitMs = baseDelayMs * Math.pow(2, attempt);
+        console.warn(`[Email] Attempt ${attempt + 1} failed, retrying in ${waitMs}ms…`, err.message);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function sendMailSafely(mailOptions, logLabel) {
   if (!hasEmailConfig()) {
     console.warn(`${logLabel} skipped because no email provider is configured.`);
@@ -208,11 +229,11 @@ async function sendMailSafely(mailOptions, logLabel) {
   }
 
   try {
-    await sendMail(mailOptions, logLabel);
+    await withEmailRetry(() => sendMail(mailOptions, logLabel));
     console.log(`${logLabel} sent.`);
     return true;
   } catch (err) {
-    console.error(`${logLabel} failed:`, err);
+    console.error(`${logLabel} failed after retries:`, err.message || err);
     return false;
   }
 }

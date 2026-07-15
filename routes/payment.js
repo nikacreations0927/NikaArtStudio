@@ -1,6 +1,6 @@
 // routes/payment.js
 const express = require('express');
-const { createOrderFromCart, getOrder, quoteCartDiscount, recordPayment, submitPrebookBalanceReference } = require('../db');
+const { createOrderFromCart, db, getOrder, quoteCartDiscount, recordPayment, submitPrebookBalanceReference } = require('../db');
 const asyncHandler = require('../middleware/asyncHandler');
 const { sendOrderPlacedAdminEmail, sendOrderPlacedCustomerEmail } = require('../services/email');
 const { optionalCustomer } = require('../middleware/customerAuth');
@@ -85,6 +85,18 @@ router.post('/initiate', optionalCustomer, asyncHandler(async (req, res) => {
   }
   if (!reference) {
     return res.status(400).json({ success: false, message: 'Enter the UPI transaction/reference ID after payment.' });
+  }
+
+  // Prevent duplicate orders with the same UPI reference
+  const existingPayment = await db.get(
+    "SELECT id FROM payments WHERE provider_transaction_id = ? AND status NOT IN ('FAILED', 'CANCELLED')",
+    [reference]
+  );
+  if (existingPayment) {
+    return res.status(409).json({
+      success: false,
+      message: 'This UPI reference ID has already been submitted for another order. If you have already paid, please contact us or track your existing order.'
+    });
   }
 
   const orderId = 'NIKA' + Date.now() + Math.random().toString(36).slice(2, 6).toUpperCase();

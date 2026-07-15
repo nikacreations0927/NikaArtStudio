@@ -374,8 +374,8 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
 }));
 
 router.get('/orders', requireCustomer, asyncHandler(async (req, res) => {
-  const orders = (await listOrders({ limit: 200 }))
-    .filter(order => String(order.customer.email || '').toLowerCase() === String(req.customer.email || '').toLowerCase())
+  // DB-level filter — no longer limited to first 200 orders or in-memory JS scan
+  const orders = (await listOrders({ limit: 50, customerEmail: req.customer.email }))
     .map(order => ({
       id: order.id,
       total: order.total,

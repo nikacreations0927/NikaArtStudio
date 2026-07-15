@@ -303,9 +303,22 @@ async function quoteCartDiscount(cart, customer, options = {}) {
   return { subtotal, shipping, total, discount };
 }
 
-async function listOrders({ limit = 100 } = {}) {
+async function listOrders({ limit = 100, customerEmail = null } = {}) {
   if (typeof arguments[0] === 'number') limit = arguments[0];
-  const rows = await db.all('SELECT id FROM orders ORDER BY created_at DESC LIMIT ?', [limit]);
+
+  let rows;
+  if (customerEmail) {
+    // Filter at the DB level using JSON text extraction — avoids loading all orders into memory
+    rows = await db.all(
+      `SELECT id FROM orders
+       WHERE lower(customer_json::json->>'email') = lower(?)
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      [customerEmail, limit]
+    );
+  } else {
+    rows = await db.all('SELECT id FROM orders ORDER BY created_at DESC LIMIT ?', [limit]);
+  }
   return Promise.all(rows.map(row => getOrder(row.id)));
 }
 
