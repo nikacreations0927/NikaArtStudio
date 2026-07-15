@@ -1,4 +1,4 @@
-﻿// db/connection.js
+// db/connection.js
 // Slim orchestrator: builds the db wrapper, then delegates schema and seed
 // responsibilities to db/pool.js, db/schema.js, and db/seed.js.
 // Kept for backwards compatibility - all existing imports of db/connection.js
@@ -60,7 +60,7 @@ const db = {
 
 async function initDatabase() {
   await initSchema();
-  await seedDatabase();
+  await seedDatabase(db);
 }
 
 const ready = initDatabase();

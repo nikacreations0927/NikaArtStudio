@@ -1,12 +1,12 @@
-﻿// db/seed.js
+// db/seed.js
 // Handles all startup seed logic: default content, category migration,
 // admin user seeding, and product catalog seeding from CSV.
 // Extracted from db/connection.js to keep each file single-responsibility.
+// db is passed in as a parameter from connection.js to avoid a circular dependency.
 
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
-const { db } = require('./connection');
 
 const dataDir = path.join(__dirname, '..', 'data');
 const cloudinaryProductCsvPath = path.join(dataDir, 'keychain-cloudinary-products.csv');
@@ -112,7 +112,7 @@ function loadCloudinaryProductsFromCsv() {
   }).filter(Boolean);
 }
 
-async function seedProductRows(products) {
+async function seedProductRows(db, products) {
   if (!products.length) return 0;
 
   return db.transaction(async tx => {
@@ -136,7 +136,7 @@ async function seedProductRows(products) {
   });
 }
 
-async function hasOnlyDefaultPlaceholderProducts() {
+async function hasOnlyDefaultPlaceholderProducts(db) {
   const row = await db.get(`
     SELECT COUNT(*)::int AS count,
       SUM(CASE WHEN id IN (?, ?, ?, ?, ?, ?) AND image = ? THEN 1 ELSE 0 END)::int AS placeholder_count
@@ -145,7 +145,7 @@ async function hasOnlyDefaultPlaceholderProducts() {
   return row.count === 6 && row.placeholder_count === 6;
 }
 
-async function seedDatabase() {
+async function seedDatabase(db) {
   // Default site content
   try {
     const defaultContent = {
@@ -197,17 +197,17 @@ async function seedDatabase() {
   const row = await db.get('SELECT COUNT(*)::int AS count FROM products');
   const shouldSeedCloudinaryCatalog =
     cloudinaryProducts.length > 0 &&
-    (row.count === 0 || await hasOnlyDefaultPlaceholderProducts());
+    (row.count === 0 || await hasOnlyDefaultPlaceholderProducts(db));
 
   if (shouldSeedCloudinaryCatalog) {
     try {
-      if (await hasOnlyDefaultPlaceholderProducts()) {
+      if (await hasOnlyDefaultPlaceholderProducts(db)) {
         await db.transaction(async tx => {
           await tx.run('DELETE FROM inventory_events WHERE product_id IN (?, ?, ?, ?, ?, ?)', ['p001', 'p002', 'p003', 'p004', 'p005', 'p006']);
           await tx.run('DELETE FROM products WHERE id IN (?, ?, ?, ?, ?, ?)',               ['p001', 'p002', 'p003', 'p004', 'p005', 'p006']);
         });
       }
-      const added = await seedProductRows(cloudinaryProducts);
+      const added = await seedProductRows(db, cloudinaryProducts);
       if (added > 0) console.log(`Seeded ${added} Cloudinary catalog products from CSV.`);
     } catch (err) {
       console.error('Failed to seed Cloudinary products:', err);
@@ -241,7 +241,7 @@ async function seedDatabase() {
   ];
 
   try {
-    await seedProductRows(defaultProducts);
+    await seedProductRows(db, defaultProducts);
   } catch (err) {
     console.error('Failed to seed default products:', err);
   }
