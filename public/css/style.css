@@ -2821,3 +2821,84 @@ body {
     text-align: center;
   }
 }
+
+/* -- Offer Ticker / Announcement Scroll --------------------------------- */
+.offer-ticker {
+  width: 100%;
+  background: var(--charcoal);           /* deep forest green — brand anchor */
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1;
+  /* Sits above sticky header — stacks naturally */
+}
+
+.offer-ticker__track {
+  display: inline-flex;
+  animation: ticker-scroll 32s linear infinite;
+  will-change: transform;
+}
+
+/* Pause on hover — lets users read without chasing text */
+.offer-ticker:hover .offer-ticker__track {
+  animation-play-state: paused;
+}
+
+.offer-ticker__set {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.58rem 0;
+}
+
+.offer-ticker__item {
+  padding: 0 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.offer-ticker__item strong {
+  color: var(--terra);             /* brand gold — makes codes pop */
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.offer-ticker__sep {
+  color: var(--terra);
+  font-size: 0.65rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }   /* -50% = one full set width (two sets = seamless loop) */
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .offer-ticker__track {
+    animation: none;
+  }
+  .offer-ticker {
+    overflow: auto;
+    white-space: normal;
+    text-align: center;
+    padding: 0.5rem 1rem;
+  }
+  .offer-ticker__set:last-child {
+    display: none;          /* only need one copy when not animating */
+  }
+  .offer-ticker__sep {
+    display: none;
+  }
+  .offer-ticker__item {
+    display: block;
+    padding: 0.2rem 0;
+  }
+}
+/* ------------------------------------------------------------------------ */
