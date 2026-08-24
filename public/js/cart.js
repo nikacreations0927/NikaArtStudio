@@ -1,4 +1,4 @@
-// public/js/cart.js
+﻿// public/js/cart.js
 
 // ==========================================
 // 1. STOREFRONT LOGIC (The missing piece!)
@@ -589,11 +589,30 @@ function changeQty(key, delta) {
   }
 }
 
+// Canonical key resolver — always normalises so remove/find never silently fails
+// due to casing/trimming differences in old localStorage entries.
+function resolveCartKey(item) {
+  return item.cartKey || cartItemKey(item.id, item.selectedColor || item.color || '');
+}
+
 function removeFromCart(key) {
   let cart = getCart();
-  cart = cart.filter(item => (item.cartKey || cartItemKey(item.id, item.selectedColor || item.color)) !== key);
+  const before = cart.length;
+  cart = cart.filter(item => resolveCartKey(item) !== key);
+  if (cart.length === before) {
+    // Key did not match — legacy item without cartKey. Fall back to id prefix.
+    const idPart = key.split('::')[0];
+    cart = cart.filter(item => item.id !== idPart);
+  }
   saveCart(cart);
   renderCartPage();
+}
+
+// Emergency escape hatch — run clearCart() in browser console to clear a stuck cart.
+function clearCart() {
+  saveCart([]);
+  renderCartPage();
+  console.info('[Nika] Cart cleared.');
 }
 
 async function processCheckout(event) {
